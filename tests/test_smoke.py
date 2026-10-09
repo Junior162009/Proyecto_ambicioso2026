@@ -169,3 +169,12 @@ def test_map_and_key_items_work_from_inventory():
     assert game.mundo.area_actual.id == 2
     assert "llave" not in game.jugador.inventario
     assert game.panel is None
+
+def test_generated_areas_always_have_a_spawn_tile():
+    from mundo import AreaMundo
+    for _ in range(12):
+        for area in (
+            AreaMundo(1, "Bosque", "bosque", (20, 20), 2),
+            AreaMundo(2, "Cueva", "cueva", (25, 25), 5),
+        ):
+            assert any("P" in fila for fila in area.mapa)

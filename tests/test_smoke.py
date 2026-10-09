@@ -155,3 +155,17 @@ def test_main_player_defense_effect_reduces_damage():
     before = player.vida
     player.recibir_daño(20)
     assert player.vida == before - 10
+
+def test_map_and_key_items_work_from_inventory():
+    game = main.Juego()
+    game.jugador.puntos = 100
+    game.tienda.comprar("mapa", game.jugador)
+    game.jugador.agregar_item("llave")
+    game.panel = "inventario"
+    game.gestionar_panel(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_1))
+    assert game.panel == "mapa"
+    game.panel = "inventario"
+    game.gestionar_panel(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_2))
+    assert game.mundo.area_actual.id == 2
+    assert "llave" not in game.jugador.inventario
+    assert game.panel is None

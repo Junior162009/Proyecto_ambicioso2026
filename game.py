@@ -94,7 +94,11 @@ class Game:
 
         elif self.state == GameState.GAME_OVER:
             self.level_manager.current_level = 1
-            self.player.hp = self.player.max_hp
+            self.state = GameState.PLAYING
+            self._init_level()
+
+        elif self.state == GameState.BOSS_DEFEATED:
+            self.level_manager.current_level = 1
             self.state = GameState.PLAYING
             self._init_level()
 
@@ -126,18 +130,9 @@ class Game:
             if self.boss and not self.boss.is_alive():
                 self.state = GameState.LEVEL_COMPLETE
         else:
-            if len(self.enemies) == 0:
-                if self.enemy_spawn_timer <= 0:
-                    config_data = self.level_manager.get_current_config()
-                    for _ in range(2):
-                        enemy = Enemy(
-                            random.randint(config.ENEMY_SIZE, config.SCREEN_WIDTH - config.ENEMY_SIZE),
-                            random.randint(config.ENEMY_SIZE, config.SCREEN_HEIGHT - config.ENEMY_SIZE),
-                            hp=int(config_data['enemy_hp'] * config_data['difficulty'])
-                        )
-                        self.enemies.append(enemy)
-                    self.enemy_spawn_timer = 120
-                self.enemy_spawn_timer -= 1
+            # El nivel se completa al derrotar la última oleada; no generar enemigos infinitos.
+            if not self.enemies:
+                self.state = GameState.LEVEL_COMPLETE
 
     def render(self):
         """Dibuja todo en pantalla"""

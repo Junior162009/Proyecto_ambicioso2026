@@ -165,6 +165,11 @@ class Mundo:
         self.area_actual = self.areas[1]
         self.area_actual.explorada = True
 
+    @property
+    def progreso(self):
+        """Cantidad de áreas nuevas descubiertas tras la zona inicial."""
+        return max(0, sum(1 for area in self.areas.values() if area.explorada) - 1)
+
     # ===============================
     # CAMBIAR ÁREA
     # ===============================

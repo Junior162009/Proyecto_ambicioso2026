@@ -125,8 +125,10 @@ class Jugador:
             efecto = {"pocion_velocidad": "velocidad", "pocion_fuerza": "fuerza",
                       "pocion_defensa": "defensa"}[item_id]
             self.efectos_activos[efecto] = ahora + 30000
-        elif item_id in ("mapa", "llave"):
-            return True, "El objeto está en el inventario; las salidas actuales no requieren llave."
+        elif item_id == "mapa":
+            return True, "Pulsa M para consultar el mapa mundial."
+        elif item_id == "llave":
+            return False, "Usa la llave desde el inventario del juego."
         self.inventario[item_id] -= 1
         if self.inventario[item_id] <= 0:
             del self.inventario[item_id]
@@ -303,13 +305,42 @@ class Juego:
         elif self.panel == "inventario":
             objetos = list(self.jugador.inventario)
             if indice < len(objetos):
-                _, mensaje = self.jugador.usar_item(objetos[indice])
-                self.avisar(mensaje)
+                item_id = objetos[indice]
+                if item_id == "mapa":
+                    self.panel = "mapa"
+                elif item_id == "llave":
+                    self.usar_llave()
+                else:
+                    _, mensaje = self.jugador.usar_item(item_id)
+                    self.avisar(mensaje)
         elif self.panel == "misiones":
             disponibles = self.misiones.misiones_disponibles
             if indice < len(disponibles):
                 _, mensaje = self.misiones.aceptar_mision(disponibles[indice].id)
                 self.avisar(mensaje)
+
+    def usar_llave(self):
+        """Consume una llave para viajar a la siguiente área conectada."""
+        if self.jugador.inventario.get("llave", 0) <= 0:
+            self.avisar("No tienes una llave.")
+            return
+        opciones = [i for i in self.mundo.area_actual.conexiones if i in self.mundo.areas]
+        destino = next((i for i in opciones if i != self.area_anterior_id), opciones[0] if opciones else None)
+        if destino is None:
+            self.avisar("No hay áreas conectadas para visitar.")
+            return
+        area_anterior = self.mundo.area_actual.id
+        if self.mundo.cambiar_area(destino):
+            self.jugador.inventario["llave"] -= 1
+            if self.jugador.inventario["llave"] <= 0:
+                del self.jugador.inventario["llave"]
+            self.area_anterior_id = area_anterior
+            self.nivel = min(10, self.nivel + 1)
+            self.cargar_area()
+            mensajes = self.misiones.actualizar_mision_explorando()
+            if mensajes:
+                self.misiones.reclamar_recompensas(self.jugador)
+            self.avisar(f"Llave usada: viajaste a {self.mundo.area_actual.nombre}.")
 
     def interactuar(self):
         if self.cofre_activo:

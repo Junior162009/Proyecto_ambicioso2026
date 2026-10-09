@@ -59,6 +59,7 @@ class Jugador:
         self.experiencia = 0
         self.enemigos_eliminados = 0
         self.operaciones = []
+        self.inventario = {}
         self.cooldown_disparo = 0
         self.invulnerable = 0
         self.sprite = cargar_imagen(ASSETS / "sprites" / "jugador.png", (TAM, TAM), (55, 125, 245))
@@ -91,6 +92,14 @@ class Jugador:
             self.cooldown_disparo -= 1
         if self.invulnerable > 0:
             self.invulnerable -= 1
+
+    @property
+    def nivel(self):
+        return 1 + self.experiencia // 100
+
+    def agregar_item(self, item_id, cantidad=1):
+        self.inventario[item_id] = self.inventario.get(item_id, 0) + max(1, int(cantidad))
+        return self.inventario[item_id]
 
     def recibir_daño(self, cantidad):
         if self.invulnerable <= 0:

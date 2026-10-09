@@ -341,6 +341,10 @@ class Juego:
                             self.area_anterior_id = area_anterior
                             self.nivel = min(10, self.nivel + 1)
                             self.cargar_area()
+                            mensajes = self.misiones.actualizar_mision_explorando()
+                            if mensajes:
+                                self.misiones.reclamar_recompensas(self.jugador)
+                                self.avisar(" ".join(mensajes))
                             return
         # En ausencia de una puerta marcada en el mapa, E cerca del borde permite viajar.
         area = self.mundo.area_actual
@@ -357,6 +361,10 @@ class Juego:
                         self.area_anterior_id = area_anterior
                         self.nivel = min(10, self.nivel + 1)
                         self.cargar_area()
+                        mensajes = self.misiones.actualizar_mision_explorando()
+                        if mensajes:
+                            self.misiones.reclamar_recompensas(self.jugador)
+                            self.avisar(" ".join(mensajes))
                         return
         self.avisar("Acércate a un cofre, habitante o salida para interactuar.")
 
@@ -374,9 +382,12 @@ class Juego:
                 self.jugador.puntos += 30
                 self.jugador.experiencia += 20
                 self.jugador.operaciones.append(self.cofre_activo.operacion)
+                mensajes_mision = self.misiones.actualizar_mision_cofre()
+                if mensajes_mision:
+                    self.misiones.reclamar_recompensas(self.jugador)
                 self.cofre_activo = None
                 self.respuesta = ""
-                self.avisar("¡Correcto! +30 puntos y +20 experiencia")
+                self.avisar("¡Correcto! +30 puntos y +20 experiencia" + (" · " + " ".join(mensajes_mision) if mensajes_mision else ""))
             else:
                 self.respuesta = ""
                 self.avisar("Respuesta incorrecta. Inténtalo de nuevo.")
@@ -412,7 +423,12 @@ class Juego:
                     self.jugador.puntos += 15
                     self.jugador.experiencia += 10
                     self.jugador.enemigos_eliminados += 1
-                    self.avisar("Enemigo derrotado: +15 puntos")
+                    mensajes_mision = self.misiones.actualizar_mision_matando("Básico")
+                    if mensajes_mision:
+                        self.misiones.reclamar_recompensas(self.jugador)
+                        self.avisar(" ".join(mensajes_mision))
+                    else:
+                        self.avisar("Enemigo derrotado: +15 puntos")
         for mensaje_progreso in self.progresion.verificar_progreso(self.jugador, self.mundo):
             self.avisar(mensaje_progreso)
         self.misiones.actualizar_mision_nivel(self.jugador.nivel)

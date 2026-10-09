@@ -38,6 +38,7 @@ class Player(pygame.sprite.Sprite):
 
         # Inventario y progresión usados por tienda.py y progresion.py.
         self.inventario = {}
+        self.puntos = 0
         self.experiencia = 0
         self.nivel = 1
 

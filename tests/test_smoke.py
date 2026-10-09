@@ -118,3 +118,14 @@ def test_missions_can_be_accepted_and_rewards_claimed_once():
     assert player.puntos == before + 100
     missions.reclamar_recompensas(player)
     assert player.puntos == before + 100
+
+def test_every_runtime_module_imports():
+    import importlib
+    modules = (
+        "areas", "bala", "boss", "combat", "combate", "config", "cofre",
+        "enemy", "enemigo", "game", "jefe", "jugador", "levels", "main",
+        "mapa", "menu", "misiones", "mundo", "niveles", "npc", "player",
+        "progresion", "puerta", "settings", "sistema_respuestas", "tienda", "ui",
+    )
+    for module_name in modules:
+        assert importlib.import_module(module_name) is not None, module_name

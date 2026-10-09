@@ -14,6 +14,7 @@ class Mision:
         self.completada  = False
         self.npc         = npc
         self.recompensa  = recompensa
+        self.recompensa_reclamada = False
 
     def actualizar(self, cantidad=1):
         if not self.completada:
@@ -63,6 +64,48 @@ class SistemaMisiones:
 
     def obtener_misiones_disponibles(self):
         return [m.info() for m in self.misiones_disponibles]
+
+    def aceptar_mision(self, mision_id):
+        """Mueve una misión disponible a la lista activa sin duplicarla."""
+        mision = next((m for m in self.misiones_disponibles if m.id == mision_id), None)
+        if mision is None:
+            return False, "La misión no está disponible."
+        if any(m.id == mision_id for m in self.misiones_activas):
+            return False, "Ya tienes esta misión activa."
+        self.misiones_disponibles.remove(mision)
+        self.misiones_activas.append(mision)
+        return True, f"Misión aceptada: {mision.titulo}"
+
+    def reclamar_recompensas(self, jugador):
+        """Entrega una sola vez los puntos de cada misión completada."""
+        mensajes = []
+        for mision in self.misiones_completadas:
+            if not mision.recompensa_reclamada:
+                jugador.puntos = getattr(jugador, "puntos", 0) + mision.recompensa
+                mision.recompensa_reclamada = True
+                mensajes.append(f"Recompensa recibida: {mision.titulo} (+{mision.recompensa} puntos)")
+        return mensajes
+
+    def actualizar_mision_explorando(self):
+        mensajes = []
+        for mision in self.misiones_activas:
+            if mision.tipo == "explorar" and not mision.completada:
+                if mision.actualizar():
+                    self.misiones_completadas.append(mision)
+                    mensajes.append(f"Misión completada: {mision.titulo} (+{mision.recompensa} pts)")
+        return mensajes
+
+    def actualizar_mision_nivel(self, nivel):
+        mensajes = []
+        for mision in self.misiones_activas:
+            if mision.tipo == "nivel" and not mision.completada:
+                objetivo = max(1, int(mision.cantidad))
+                mision.progreso = min(int(nivel), objetivo)
+                if mision.progreso >= objetivo:
+                    mision.completada = True
+                    self.misiones_completadas.append(mision)
+                    mensajes.append(f"Misión completada: {mision.titulo} (+{mision.recompensa} pts)")
+        return mensajes
 
     def actualizar_mision_matando(self, tipo_enemigo):
         mensajes = []

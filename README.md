@@ -26,10 +26,14 @@ Si el entorno virtual ya existe, basta con activarlo e instalar las dependencias
 - **WASD** o flechas: mover al personaje.
 - **Clic izquierdo**: disparar hacia el cursor.
 - **E**: interactuar con cofres, habitantes y salidas.
+- **T**: abrir la tienda; usa las teclas **1–7** para comprar.
+- **Q**: abrir misiones; usa los números para aceptar una misión.
+- **I**: abrir el inventario; usa los números para consumir objetos.
+- **M**: consultar el mapa mundial.
+- **R**: usar un cargador extra para recuperar 10 balas; después de perder, también reinicia la aventura.
 - **Enter**: confirmar la respuesta matemática del cofre.
 - **Retroceso**: borrar la respuesta.
-- **Esc**: salir.
-- **R**: volver a empezar después de perder.
+- **Esc**: cerrar el panel abierto o salir del juego.
 
 El juego busca recursos en la carpeta `assets/`. Si una imagen no está disponible, usa un recurso gráfico de respaldo para que la ausencia del archivo no cierre el juego.
 

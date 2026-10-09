@@ -25,8 +25,23 @@ ASSETS = BASE_DIR / "assets"
 
 pygame.init()
 pygame.display.set_caption(TITLE)
-PANTALLA = pygame.display.set_mode((ANCHO, ALTO))
+_VENTANA_TAM = (ANCHO, ALTO)
+PANTALLA = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+ANCHO, ALTO = PANTALLA.get_size()
+ANCHO_MUNDO = max(320, int(ANCHO * 0.73))
+ANCHO_PANEL = ANCHO - ANCHO_MUNDO
 RELOJ = pygame.time.Clock()
+
+def alternar_pantalla():
+    """Alterna pantalla completa y ventana sin reiniciar la partida."""
+    global PANTALLA, ANCHO, ALTO, ANCHO_MUNDO, ANCHO_PANEL
+    if PANTALLA.get_flags() & pygame.FULLSCREEN:
+        PANTALLA = pygame.display.set_mode(_VENTANA_TAM, pygame.RESIZABLE)
+    else:
+        PANTALLA = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+    ANCHO, ALTO = PANTALLA.get_size()
+    ANCHO_MUNDO = max(320, int(ANCHO * 0.73))
+    ANCHO_PANEL = ANCHO - ANCHO_MUNDO
 
 
 _CACHE_IMAGENES = {}
@@ -158,28 +173,52 @@ class Enemigo:
         self.velocidad = 1.35 if jefe else random.uniform(1.0, 1.7) * min(dificultad, 1.6)
         self.daño = 18 if jefe else 8
         self.cooldown = 0
-        self.color = (150, 55, 205) if jefe else random.choice([(205, 55, 60), (220, 105, 45), (90, 180, 75)])
+        self.tipo = "jefe" if jefe else random.choices(["patrullero", "guardian", "pasivo", "agresivo", "distancia"], weights=[3, 2, 1, 3, 1], k=1)[0]
+        self.radio_alerta = {"patrullero": 125, "guardian": 155, "pasivo": 0, "agresivo": 235, "distancia": 210, "jefe": 320}[self.tipo]
+        self.direccion = random.choice([-1, 1])
+        self.pasos_patrol = random.randint(35, 100)
+        self.color = (150, 55, 205) if jefe else {"patrullero": (220, 145, 55), "guardian": (70, 150, 210), "pasivo": (100, 190, 115), "agresivo": (205, 55, 60), "distancia": (180, 95, 205)}[self.tipo]
+
+    def _mover_con_colisiones(self, dx, dy, paredes):
+        if dx:
+            self.rect.x += dx
+            if any(self.rect.colliderect(p) for p in paredes):
+                self.rect.x -= dx
+                self.direccion *= -1
+        if dy:
+            self.rect.y += dy
+            if any(self.rect.colliderect(p) for p in paredes):
+                self.rect.y -= dy
+                self.direccion *= -1
 
     def actualizar(self, jugador, paredes):
         dx = jugador.rect.centerx - self.rect.centerx
         dy = jugador.rect.centery - self.rect.centery
         distancia = math.hypot(dx, dy)
-        if distancia > 1:
-            paso_x = round(dx / distancia * self.velocidad)
-            paso_y = round(dy / distancia * self.velocidad)
-            self.rect.x += paso_x
-            for pared in paredes:
-                if self.rect.colliderect(pared):
-                    self.rect.x -= paso_x
-                    break
-            self.rect.y += paso_y
-            for pared in paredes:
-                if self.rect.colliderect(pared):
-                    self.rect.y -= paso_y
-                    break
+        alerta = distancia <= self.radio_alerta
+        vx = vy = 0.0
+        if self.tipo in ("agresivo", "jefe") and alerta and distancia > 1:
+            vx, vy = dx / distancia * self.velocidad, dy / distancia * self.velocidad
+        elif self.tipo == "guardian" and alerta and distancia > 34:
+            vx, vy = dx / max(1, distancia) * self.velocidad, dy / max(1, distancia) * self.velocidad
+        elif self.tipo == "distancia" and alerta and distancia > 1:
+            if distancia < 105:
+                vx, vy = -dx / distancia * self.velocidad, -dy / distancia * self.velocidad
+            elif distancia > 165:
+                vx, vy = dx / distancia * self.velocidad, dy / distancia * self.velocidad
+        elif self.tipo == "patrullero":
+            self.pasos_patrol -= 1
+            if self.pasos_patrol <= 0:
+                self.direccion *= -1
+                self.pasos_patrol = random.randint(35, 100)
+            vx = self.velocidad * self.direccion
+        elif self.tipo == "pasivo" and alerta and distancia < 80 and distancia > 1:
+            vx, vy = -dx / distancia * self.velocidad, -dy / distancia * self.velocidad
+        if vx or vy:
+            self._mover_con_colisiones(round(vx), round(vy), paredes)
         if self.cooldown > 0:
             self.cooldown -= 1
-        if self.rect.colliderect(jugador.rect) and self.cooldown <= 0:
+        if self.tipo != "pasivo" and self.rect.colliderect(jugador.rect) and self.cooldown <= 0:
             jugador.recibir_daño(self.daño)
             self.cooldown = 50
 
@@ -187,6 +226,9 @@ class Enemigo:
         r = self.rect.move(-cam_x, -cam_y)
         pygame.draw.ellipse(pantalla, self.color, r)
         pygame.draw.ellipse(pantalla, (35, 25, 35), r, 2)
+        etiquetas = {"patrullero": "PATRULLA", "guardian": "GUARDIA", "pasivo": "NEUTRAL", "agresivo": "AGRESIVO", "distancia": "DISTANCIA", "jefe": "JEFE"}
+        etiqueta_img = pygame.font.Font(None, 16).render(etiquetas.get(self.tipo, "ENEMIGO"), True, (245, 245, 245))
+        pantalla.blit(etiqueta_img, (r.centerx - etiqueta_img.get_width() // 2, r.y - 23))
         ancho = r.width
         pygame.draw.rect(pantalla, (50, 20, 25), (r.x, r.y - 8, ancho, 5))
         pygame.draw.rect(pantalla, (70, 220, 90), (r.x, r.y - 8, int(ancho * max(0, self.vida / self.vida_maxima)), 5))
@@ -473,11 +515,66 @@ class Juego:
         if self.jugador.vida <= 0:
             self.estado = "game_over"
 
+    def dibujar_panel_lateral(self):
+        """Muestra preguntas y datos del jugador en una columna fija."""
+        x = ANCHO_MUNDO
+        pygame.draw.rect(PANTALLA, (19, 24, 37), (x, 0, ANCHO_PANEL, ALTO))
+        pygame.draw.line(PANTALLA, (210, 170, 80), (x, 0), (x, ALTO), 3)
+        margen = 14
+        ancho_texto = max(100, ANCHO_PANEL - margen * 2)
+        fuente_titulo = pygame.font.Font(None, max(24, min(34, ANCHO_PANEL // 8)))
+        fuente = pygame.font.Font(None, max(19, min(26, ANCHO_PANEL // 10)))
+        fuente_peq = pygame.font.Font(None, max(17, min(22, ANCHO_PANEL // 12)))
+        def escribir(mensaje, y, font=fuente, color=(235, 238, 245)):
+            linea = ""
+            for palabra in str(mensaje).split():
+                prueba = linea + (" " if linea else "") + palabra
+                if font.size(prueba)[0] <= ancho_texto:
+                    linea = prueba
+                else:
+                    if linea:
+                        PANTALLA.blit(font.render(linea, True, color), (x + margen, y))
+                        y += font.get_linesize() + 2
+                    linea = palabra
+            if linea:
+                PANTALLA.blit(font.render(linea, True, color), (x + margen, y))
+                y += font.get_linesize() + 2
+            return y
+        y = 14
+        y = escribir("MATEMIA · AVENTURA", y, fuente_titulo, (255, 210, 105)) + 5
+        y = escribir("Área: " + self.mundo.area_actual.nombre, y, fuente, (130, 205, 255))
+        y = escribir("Vida: {}/{}".format(self.jugador.vida, self.jugador.vida_maxima), y)
+        y = escribir("Nivel: {} · XP: {}".format(self.jugador.nivel, self.jugador.experiencia), y)
+        y = escribir("Puntos: {} · Munición: {}".format(self.jugador.puntos, self.jugador.municion), y)
+        y = escribir("Enemigos cercanos: {}".format(len(self.enemigos)), y)
+        pygame.draw.line(PANTALLA, (75, 86, 110), (x + margen, y + 4), (ANCHO - margen, y + 4), 1)
+        y += 15
+        if self.cofre_activo:
+            y = escribir("COFRE MATEMÁTICO", y, fuente_titulo, (255, 210, 105)) + 8
+            operacion = self.cofre_activo.obtener_texto_operacion() if hasattr(self.cofre_activo, "obtener_texto_operacion") else self.cofre_activo.operacion + " = ?"
+            y = escribir(operacion, y, fuente_titulo, (255, 255, 255)) + 8
+            y = escribir("Respuesta: " + (self.respuesta or "…"), y, fuente, (120, 235, 150))
+            y = escribir("Escribe el resultado y pulsa ENTER.", y, fuente_peq)
+            y = escribir("Retroceso borra · ESC cancela", y, fuente_peq, (190, 198, 215))
+        else:
+            y = escribir("ESTADO Y OBJETIVOS", y, fuente_titulo, (255, 210, 105)) + 6
+            y = escribir("Operaciones resueltas: {}".format(len(self.jugador.operaciones)), y)
+            y = escribir("Cofres pendientes: {}".format(sum(not c.resuelto for c in self.cofres)), y)
+            y = escribir("Misiones activas: {}".format(len(self.misiones.misiones_activas)), y)
+            y += 8
+            y = escribir("CONTROLES", y, fuente, (130, 205, 255))
+            for control in ("WASD / flechas: mover", "Clic en mundo: disparar", "E: interactuar / abrir cofre", "T: tienda · I: inventario", "Q: misiones · M: mapa", "F11: alternar pantalla", "ESC: cerrar panel / salir"):
+                y = escribir(control, y, fuente_peq)
+        if pygame.time.get_ticks() < self.mensaje_hasta:
+            msg_y = max(y + 8, ALTO - 120)
+            pygame.draw.line(PANTALLA, (75, 86, 110), (x + margen, msg_y), (ANCHO - margen, msg_y), 1)
+            msg_y = escribir("MENSAJE", msg_y + 8, fuente, (255, 210, 105))
+            escribir(self.mensaje, msg_y, fuente_peq, (255, 235, 175))
     def dibujar(self):
         PANTALLA.fill((18, 25, 30))
         ancho_mundo = len(self.mapa.nivel[0]) * TAM
         alto_mundo = len(self.mapa.nivel) * TAM
-        cam_x = max(0, min(self.jugador.rect.centerx - ANCHO // 2, ancho_mundo - ANCHO))
+        cam_x = max(0, min(self.jugador.rect.centerx - ANCHO_MUNDO // 2, ancho_mundo - ANCHO_MUNDO))
         cam_y = max(0, min(self.jugador.rect.centery - ALTO // 2, alto_mundo - ALTO))
         self.mapa.dibujar_suelo(PANTALLA, cam_x, cam_y)
         self.mapa.dibujar_paredes(PANTALLA, cam_x, cam_y)
@@ -513,15 +610,6 @@ class Juego:
             PANTALLA.blit(panel, (50, ALTO - 82))
             texto(PANTALLA, self.mensaje, 65, ALTO - 72, self.fuente, TEXTO_TITULO)
 
-        if self.cofre_activo:
-            panel = pygame.Surface((520, 180), pygame.SRCALPHA)
-            panel.fill((18, 22, 34, 245))
-            pygame.draw.rect(panel, (210, 170, 80), panel.get_rect(), 3, border_radius=12)
-            PANTALLA.blit(panel, (ANCHO // 2 - 260, ALTO // 2 - 90))
-            texto(PANTALLA, "COFRE MATEMÁTICO", ANCHO // 2 - 225, ALTO // 2 - 70, self.fuente_grande, TEXTO_TITULO)
-            texto(PANTALLA, f"{self.cofre_activo.operacion} = ?", ANCHO // 2 - 200, ALTO // 2 - 25, self.fuente_grande)
-            texto(PANTALLA, f"Respuesta: {self.respuesta}_", ANCHO // 2 - 200, ALTO // 2 + 20, self.fuente)
-            texto(PANTALLA, "ENTER confirmar · BACKSPACE borrar", ANCHO // 2 - 200, ALTO // 2 + 55, self.fuente)
 
         if self.panel is not None:
             overlay = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
@@ -564,6 +652,7 @@ class Juego:
             texto(PANTALLA, "HAS CAÍDO EN MATEMIA", ANCHO // 2 - 190, ALTO // 2 - 40, self.fuente_grande, (255, 100, 100))
             texto(PANTALLA, "Pulsa R para volver a intentarlo · ESC salir", ANCHO // 2 - 220, ALTO // 2 + 12, self.fuente)
 
+        self.dibujar_panel_lateral()
         pygame.display.flip()
 
     def ejecutar(self):
@@ -574,7 +663,14 @@ class Juego:
                 if evento.type == pygame.QUIT:
                     ejecutando = False
                 elif evento.type == pygame.KEYDOWN:
-                    if evento.key == pygame.K_ESCAPE and self.panel is not None:
+                    if evento.key == pygame.K_F11:
+                        alternar_pantalla()
+                    elif evento.key == pygame.K_ESCAPE and self.cofre_activo:
+                        self.cofre_activo.abierto = False
+                        self.cofre_activo = None
+                        self.respuesta = ""
+                        self.avisar("Pregunta cancelada; el cofre sigue sin reclamar.")
+                    elif evento.key == pygame.K_ESCAPE and self.panel is not None:
                         self.panel = None
                     elif evento.key == pygame.K_ESCAPE:
                         ejecutando = False
@@ -604,7 +700,7 @@ class Juego:
                         mouse = pygame.mouse.get_pos()
                         ancho_mundo = len(self.mapa.nivel[0]) * TAM
                         alto_mundo = len(self.mapa.nivel) * TAM
-                        cam_x = max(0, min(self.jugador.rect.centerx - ANCHO // 2, ancho_mundo - ANCHO))
+                        cam_x = max(0, min(self.jugador.rect.centerx - ANCHO_MUNDO // 2, ancho_mundo - ANCHO_MUNDO))
                         cam_y = max(0, min(self.jugador.rect.centery - ALTO // 2, alto_mundo - ALTO))
                         self.disparar((mouse[0] + cam_x, mouse[1] + cam_y))
             self.actualizar()

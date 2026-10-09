@@ -137,10 +137,13 @@ class AreaMundo:
                     mapa[y] = "".join(fila)
                     return mapa
 
-        # Último recurso para mapas completamente bloqueados por generación aleatoria.
-        fila = list(mapa[alto // 2])
-        fila[ancho // 2] = "P"
-        mapa[alto // 2] = "".join(fila)
+        # Último recurso: abrir una pequeña zona segura alrededor del spawn.
+        centro_x, centro_y = ancho // 2, alto // 2
+        for y in range(max(1, centro_y - 1), min(alto - 1, centro_y + 2)):
+            fila = list(mapa[y])
+            for x in range(max(1, centro_x - 1), min(ancho - 1, centro_x + 2)):
+                fila[x] = "P" if (x == centro_x and y == centro_y) else "0"
+            mapa[y] = "".join(fila)
         return mapa
 
 

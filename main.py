@@ -325,8 +325,11 @@ class Juego:
         for npc in self.npcs:
             if cerca.colliderect(npc.rect):
                 npc.hablando = True
-                npc.dialogo_actual = (npc.dialogo_actual + 1) % max(1, len(npc.dialogo))
-                self.avisar(f"{npc.nombre}: {npc.dialogo[npc.dialogo_actual]}")
+                if npc.dialogo:
+                    self.avisar(f"{npc.nombre}: {npc.dialogo[npc.dialogo_actual]}")
+                    npc.dialogo_actual = (npc.dialogo_actual + 1) % len(npc.dialogo)
+                else:
+                    self.avisar(f"{npc.nombre} no tiene diálogo disponible.")
                 return
         for puerta in self.puertas:
             if cerca.colliderect(puerta):

@@ -1,7 +1,8 @@
 # 🧙 MUNDO LIBRE MATEMÁTICO — GUÍA COMPLETA
 
----
+> **Estado de la versión ejecutable:** `python main.py` inicia la aventura de mundo abierto con Bosque, Lago, Aldea, Cueva y Mazmorra; cofres matemáticos, enemigos y jefe, tienda (`T`), misiones (`Q`), inventario (`I`), mapa mundial (`M`) y munición/recarga (`R`). El módulo `game.py` mantiene aparte el modo de combate de 10 niveles. Las descripciones posteriores de variantes de enemigos, fases avanzadas del jefe, logros y áreas adicionales son parte del diseño original y no todas están activas todavía en la aventura principal.
 
+---
 ## 🎯 OBJETIVOS DEL JUEGO
 
 ### Historia Principal
@@ -29,7 +30,7 @@ El reino de **Matemia** está en peligro. El **Liche Matemático**, un ser antig
 | **I** | Abrir inventario |
 | **T** | Abrir tienda |
 | **ESC** | Salir del juego |
-| **ESPACIO** | Avanzar diálogo de NPC |
+| **ESPACIO** | Avanzar el estado en el modo de combate por niveles (`game.py`) |
 | **ENTER** | Confirmar respuesta en cofre |
 | **BACKSPACE** | Borrar último dígito en cofre |
 

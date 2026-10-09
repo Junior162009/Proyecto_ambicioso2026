@@ -539,7 +539,9 @@ class Juego:
                 if evento.type == pygame.QUIT:
                     ejecutando = False
                 elif evento.type == pygame.KEYDOWN:
-                    if evento.key == pygame.K_ESCAPE:
+                    if evento.key == pygame.K_ESCAPE and self.panel is not None:
+                        self.panel = None
+                    elif evento.key == pygame.K_ESCAPE:
                         ejecutando = False
                     elif self.estado == "game_over" and evento.key == pygame.K_r:
                         self.jugador = Jugador()

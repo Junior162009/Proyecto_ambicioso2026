@@ -165,6 +165,7 @@ class Juego:
         self.cofre_activo = None
         self.respuesta = ""
         self.area_visitada = set()
+        self.area_anterior_id = None
         self.nivel = 1
         self.cargar_area(inicial=True)
 
@@ -210,7 +211,19 @@ class Juego:
                         self.enemigos.append(Enemigo(x, y, 1 + area.peligrosidad * 0.08))
                         break
         if area.id == 5 and not area.es_segura:
-            self.enemigos.append(Enemigo(len(mapa_data[0]) * TAM // 2, len(mapa_data) * TAM // 2, 2.0, jefe=True))
+            # Buscar una celda despejada para que el jefe no aparezca dentro de una pared.
+            jefe_creado = False
+            for y in range(1, len(mapa_data) - 2):
+                for x in range(1, len(mapa_data[y]) - 2):
+                    rect_jefe = pygame.Rect(x * TAM, y * TAM, 64, 64)
+                    if (not any(rect_jefe.colliderect(p) for p in self.mapa.paredes)
+                            and math.hypot(rect_jefe.centerx - self.jugador.rect.centerx,
+                                           rect_jefe.centery - self.jugador.rect.centery) > 180):
+                        self.enemigos.append(Enemigo(rect_jefe.x, rect_jefe.y, 2.0, jefe=True))
+                        jefe_creado = True
+                        break
+                if jefe_creado:
+                    break
         self.avisar(f"{area.nombre} — {len(self.enemigos)} enemigos")
 
     def disparar(self, destino):
@@ -242,11 +255,15 @@ class Juego:
                 conexiones = self.mundo.area_actual.conexiones
                 if conexiones:
                     # Las conexiones están definidas en mundo.py; usar solo destinos válidos.
-                    destino = next((i for i in conexiones if i in self.mundo.areas), None)
-                    if destino is not None and self.mundo.cambiar_area(destino):
-                        self.nivel = min(10, self.nivel + 1)
-                        self.cargar_area()
-                        return
+                    opciones = [i for i in conexiones if i in self.mundo.areas]
+                    destino = next((i for i in opciones if i != self.area_anterior_id), opciones[0] if opciones else None)
+                    if destino is not None:
+                        area_anterior = self.mundo.area_actual.id
+                        if self.mundo.cambiar_area(destino):
+                            self.area_anterior_id = area_anterior
+                            self.nivel = min(10, self.nivel + 1)
+                            self.cargar_area()
+                            return
         # En ausencia de una puerta marcada en el mapa, E cerca del borde permite viajar.
         area = self.mundo.area_actual
         if conexiones := area.conexiones:
@@ -256,8 +273,10 @@ class Juego:
             if borde:
                 opciones = [i for i in conexiones if i in self.mundo.areas]
                 if opciones:
-                    destino = opciones[0]
+                    destino = next((i for i in opciones if i != self.area_anterior_id), opciones[0])
+                    area_anterior = self.mundo.area_actual.id
                     if self.mundo.cambiar_area(destino):
+                        self.area_anterior_id = area_anterior
                         self.nivel = min(10, self.nivel + 1)
                         self.cargar_area()
                         return

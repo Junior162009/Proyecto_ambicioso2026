@@ -26,16 +26,22 @@ PANTALLA = pygame.display.set_mode((ANCHO, ALTO))
 RELOJ = pygame.time.Clock()
 
 
+_CACHE_IMAGENES = {}
+
 def cargar_imagen(ruta, tamaño, color_respaldo):
-    """Carga recursos desde una ruta absoluta; si faltan, crea un respaldo visible."""
+    """Carga y escala cada recurso una sola vez para evitar tirones."""
+    clave = (str(ruta), tamaño, color_respaldo)
+    if clave in _CACHE_IMAGENES:
+        return _CACHE_IMAGENES[clave]
     try:
         imagen = pygame.image.load(str(ruta)).convert_alpha()
-        return pygame.transform.smoothscale(imagen, tamaño)
+        imagen = pygame.transform.smoothscale(imagen, tamaño)
     except (pygame.error, OSError):
         imagen = pygame.Surface(tamaño, pygame.SRCALPHA)
         imagen.fill(color_respaldo)
         pygame.draw.rect(imagen, (245, 225, 170), imagen.get_rect(), 2)
-        return imagen
+    _CACHE_IMAGENES[clave] = imagen
+    return imagen
 
 
 def texto(superficie, mensaje, x, y, fuente, color=TEXTO_NORMAL):
@@ -200,7 +206,7 @@ class Juego:
                     x = random.randint(1, len(mapa_data[0]) - 2) * TAM
                     y = random.randint(1, len(mapa_data) - 2) * TAM
                     rect = pygame.Rect(x, y, 28, 28)
-                    if not any(rect.colliderect(p) for p in self.mapa.paredes) and rect.distance_to(self.jugador.rect) > 150:
+                    if not any(rect.colliderect(p) for p in self.mapa.paredes) and math.hypot(rect.centerx - self.jugador.rect.centerx, rect.centery - self.jugador.rect.centery) > 150:
                         self.enemigos.append(Enemigo(x, y, 1 + area.peligrosidad * 0.08))
                         break
         if area.id == 5 and not area.es_segura:

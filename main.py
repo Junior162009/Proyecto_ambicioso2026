@@ -336,6 +336,7 @@ class Juego:
                 del self.jugador.inventario["llave"]
             self.area_anterior_id = area_anterior
             self.nivel = min(10, self.nivel + 1)
+            self.panel = None
             self.cargar_area()
             mensajes = self.misiones.actualizar_mision_explorando()
             if mensajes:

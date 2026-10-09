@@ -1,16 +1,21 @@
-# config.py - Configuración centralizada
-"""
-Configuración centralizada del juego
-Mantiene todos los valores constantes en un solo lugar
-"""
+# settings.py - Configuración centralizada y compatibilidad
+"""Configuración centralizada del juego MindMath 2026."""
 
-# ============= PANTALLA =============
+# Pantalla
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
+ANCHO = SCREEN_WIDTH
+ALTO = SCREEN_HEIGHT
 FPS = 60
 TITLE = "MindMath 2026 - Batalla Matemática"
 
-# ============= COLORES =============
+# Tamaño base de tiles y constantes de iluminación usadas por mapa.py / npc.py
+TAM = 32
+OSCURIDAD_TUNEL_ALPHA = 170
+LUZ_RADIO_TUNEL = 96
+LUZ_RADIO_NORMAL = 180
+
+# Colores
 COLOR_BLACK = (0, 0, 0)
 COLOR_WHITE = (255, 255, 255)
 COLOR_RED = (255, 0, 0)
@@ -20,33 +25,42 @@ COLOR_GRAY = (128, 128, 128)
 COLOR_YELLOW = (255, 255, 0)
 COLOR_PURPLE = (128, 0, 128)
 
-# ============= JUGADOR =============
+# Alias de nombres utilizados por módulos antiguos
+NEGRO = COLOR_BLACK
+BLANCO = COLOR_WHITE
+ROJO = COLOR_RED
+VERDE = COLOR_GREEN
+AZUL = COLOR_BLUE
+GRIS = COLOR_GRAY
+AMARILLO = COLOR_YELLOW
+MORADO = COLOR_PURPLE
+
+# Jugador
 PLAYER_SPEED = 5
 PLAYER_SIZE = 40
 PLAYER_MAX_HP = 100
 PLAYER_INITIAL_HP = 100
 
-# ============= ENEMIGOS =============
+# Enemigos
 ENEMY_SPEED = 2
 ENEMY_SIZE = 35
 ENEMY_MAX_HP = 30
 ENEMY_DAMAGE = 10
 
-# ============= JEFE =============
+# Jefe
 BOSS_SIZE = 80
 BOSS_MAX_HP = 300
 BOSS_SPEED = 2.5
 BOSS_DAMAGE = 25
 BOSS_ATTACK_COOLDOWN = 60
 
-# ============= COMBATE =============
+# Combate
 ATTACK_DAMAGE = 20
 ATTACK_COOLDOWN = 30
 
-# ============= NIVELES =============
+# Niveles
 TOTAL_LEVELS = 10
 BOSS_LEVEL = 10
-
 LEVEL_CONFIG = {
     1: {"enemies": 2, "enemy_hp": 20, "difficulty": 1.0},
     2: {"enemies": 3, "enemy_hp": 25, "difficulty": 1.1},

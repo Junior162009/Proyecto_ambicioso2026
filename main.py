@@ -173,6 +173,8 @@ class Enemigo:
         self.velocidad = 1.35 if jefe else random.uniform(1.0, 1.7) * min(dificultad, 1.6)
         self.daño = 18 if jefe else 8
         self.cooldown = 0
+        self.cooldown_disparo = random.randint(20, 60)
+        self.disparo_pendiente = None
         self.tipo = "jefe" if jefe else random.choices(["patrullero", "guardian", "pasivo", "agresivo", "distancia"], weights=[3, 2, 1, 3, 1], k=1)[0]
         self.radio_alerta = {"patrullero": 125, "guardian": 155, "pasivo": 0, "agresivo": 235, "distancia": 210, "jefe": 320}[self.tipo]
         self.direccion = random.choice([-1, 1])
@@ -192,6 +194,7 @@ class Enemigo:
                 self.direccion *= -1
 
     def actualizar(self, jugador, paredes):
+        self.disparo_pendiente = None
         dx = jugador.rect.centerx - self.rect.centerx
         dy = jugador.rect.centery - self.rect.centery
         distancia = math.hypot(dx, dy)
@@ -218,6 +221,11 @@ class Enemigo:
             self._mover_con_colisiones(round(vx), round(vy), paredes)
         if self.cooldown > 0:
             self.cooldown -= 1
+        if self.cooldown_disparo > 0:
+            self.cooldown_disparo -= 1
+        if self.tipo == "distancia" and alerta and self.cooldown_disparo <= 0:
+            self.disparo_pendiente = (jugador.rect.centerx, jugador.rect.centery)
+            self.cooldown_disparo = 85
         if self.tipo != "pasivo" and self.rect.colliderect(jugador.rect) and self.cooldown <= 0:
             jugador.recibir_daño(self.daño)
             self.cooldown = 50
@@ -234,6 +242,19 @@ class Enemigo:
         pygame.draw.rect(pantalla, (70, 220, 90), (r.x, r.y - 8, int(ancho * max(0, self.vida / self.vida_maxima)), 5))
 
 
+class ProyectilEnemigo:
+    """Proyectil ligero para enemigos que atacan desde lejos."""
+    def __init__(self, x, y, destino_x, destino_y, daño=7):
+        self.rect = pygame.Rect(x - 5, y - 5, 10, 10)
+        dx, dy = destino_x - x, destino_y - y
+        distancia = max(1.0, math.hypot(dx, dy))
+        self.vx, self.vy = dx / distancia * 4.2, dy / distancia * 4.2
+        self.daño = daño
+    def mover(self):
+        self.rect.x += round(self.vx)
+        self.rect.y += round(self.vy)
+    def dibujar(self, pantalla, cam_x, cam_y):
+        pygame.draw.circle(pantalla, (255, 115, 90), (self.rect.centerx - cam_x, self.rect.centery - cam_y), 5)
 class Juego:
     def __init__(self):
         self.mundo = Mundo()
@@ -244,6 +265,7 @@ class Juego:
         self.mensaje = "Explora Matemia. WASD mover · clic disparar · E interactuar"
         self.mensaje_hasta = pygame.time.get_ticks() + 5000
         self.balas = []
+        self.disparos_enemigos = []
         self.cofres = []
         self.puertas = []
         self.npcs = []
@@ -270,6 +292,7 @@ class Juego:
         pared = cargar_imagen(ASSETS / "tiles" / "pared.png", (TAM, TAM), (80, 80, 95))
         self.mapa = Mapa(mapa_data, suelo, pared)
         self.cofres, self.puertas, self.npcs, self.enemigos, self.balas = [], [], [], [], []
+        self.disparos_enemigos = []
         self.area_visitada.add(area.id)
 
         for y, fila in enumerate(mapa_data):
@@ -481,6 +504,18 @@ class Juego:
 
         for enemigo in self.enemigos[:]:
             enemigo.actualizar(self.jugador, self.mapa.paredes)
+            if enemigo.disparo_pendiente:
+                dx, dy = enemigo.disparo_pendiente
+                self.disparos_enemigos.append(ProyectilEnemigo(enemigo.rect.centerx, enemigo.rect.centery, dx, dy, max(4, enemigo.daño - 1)))
+        for disparo in self.disparos_enemigos[:]:
+            disparo.mover()
+            fuera = (disparo.rect.right < 0 or disparo.rect.left > len(self.mapa.nivel[0]) * TAM or disparo.rect.bottom < 0 or disparo.rect.top > len(self.mapa.nivel) * TAM)
+            if fuera or any(disparo.rect.colliderect(p) for p in self.mapa.paredes):
+                self.disparos_enemigos.remove(disparo)
+                continue
+            if disparo.rect.colliderect(self.jugador.rect):
+                self.jugador.recibir_daño(disparo.daño)
+                self.disparos_enemigos.remove(disparo)
         for bala in self.balas[:]:
             bala.mover()
             if (bala.rect.right < 0 or bala.rect.left > len(self.mapa.nivel[0]) * TAM or
@@ -585,12 +620,17 @@ class Juego:
         for cofre in self.cofres:
             r = cofre.rect.move(-cam_x, -cam_y)
             img_path = ASSETS / "objetos" / ("cofre_abierto.png" if cofre.resuelto else "cofre_cerrado.png")
-            img = cargar_imagen(img_path, (TAM, TAM), (170, 115, 45))
-            PANTALLA.blit(img, r)
+            if img_path.is_file():
+                img = cargar_imagen(img_path, (TAM, TAM), (170, 115, 45))
+                PANTALLA.blit(img, r)
+            else:
+                cofre.dibujar(PANTALLA, cam_x, cam_y)
         for npc in self.npcs:
             npc.dibujar(PANTALLA, cam_x, cam_y)
         for bala in self.balas:
             bala.dibujar(PANTALLA, cam_x, cam_y)
+        for disparo in self.disparos_enemigos:
+            disparo.dibujar(PANTALLA, cam_x, cam_y)
         for enemigo in self.enemigos:
             enemigo.dibujar(PANTALLA, cam_x, cam_y)
         self.jugador.dibujar(PANTALLA, cam_x, cam_y)

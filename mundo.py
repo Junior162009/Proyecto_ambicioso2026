@@ -126,8 +126,21 @@ class AreaMundo:
                 fila = list(mapa[y])
                 fila[x] = "P"
                 mapa[y] = "".join(fila)
-                break
+                return mapa
 
+        # Respaldo determinista: un mapa nunca debe quedarse sin punto de aparición.
+        for y in range(1, alto - 1):
+            for x in range(1, ancho - 1):
+                if mapa[y][x] not in ["1", "#"]:
+                    fila = list(mapa[y])
+                    fila[x] = "P"
+                    mapa[y] = "".join(fila)
+                    return mapa
+
+        # Último recurso para mapas completamente bloqueados por generación aleatoria.
+        fila = list(mapa[alto // 2])
+        fila[ancho // 2] = "P"
+        mapa[alto // 2] = "".join(fila)
         return mapa
 
 

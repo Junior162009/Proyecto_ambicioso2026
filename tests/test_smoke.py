@@ -178,3 +178,39 @@ def test_generated_areas_always_have_a_spawn_tile():
             AreaMundo(2, "Cueva", "cueva", (25, 25), 5),
         ):
             assert any("P" in fila for fila in area.mapa)
+def test_main_side_panel_renders_active_chest_question():
+    game = main.Juego()
+    chest = game.cofres[0] if game.cofres else main.Cofre(96, 96)
+    if chest not in game.cofres:
+        game.cofres.append(chest)
+    game.cofre_activo = chest
+    game.respuesta = "12"
+    game.dibujar()  # Includes the persistent right-side question panel.
+
+def test_enemy_types_do_not_all_chase_and_ranged_enemy_fires():
+    player = main.Jugador()
+    walls = []
+    passive = main.Enemigo(210, 64)
+    passive.tipo = "pasivo"
+    passive.radio_alerta = 300
+    passive_before = passive.rect.copy()
+    passive.actualizar(player, walls)
+    assert passive.rect == passive_before  # Outside its flee radius; never chases.
+
+    aggressive = main.Enemigo(210, 64)
+    aggressive.tipo = "agresivo"
+    aggressive.radio_alerta = 300
+    aggressive_before = aggressive.rect.copy()
+    aggressive.actualizar(player, walls)
+    assert aggressive.rect != aggressive_before
+
+    ranged = main.Enemigo(210, 64)
+    ranged.tipo = "distancia"
+    ranged.radio_alerta = 300
+    ranged.cooldown_disparo = 0
+    ranged.actualizar(player, walls)
+    assert ranged.disparo_pendiente is not None
+    shot = main.ProyectilEnemigo(210, 64, player.rect.centerx, player.rect.centery)
+    before = shot.rect.copy()
+    shot.mover()
+    assert shot.rect != before

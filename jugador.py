@@ -36,6 +36,11 @@ class Player(pygame.sprite.Sprite):
         self.attack_cooldown = 0
         self.attack_damage = config.ATTACK_DAMAGE
 
+        # Inventario y progresión usados por tienda.py y progresion.py.
+        self.inventario = {}
+        self.experiencia = 0
+        self.nivel = 1
+
     def handle_input(self, keys):
         """
         Procesa entrada del teclado
@@ -76,6 +81,17 @@ class Player(pygame.sprite.Sprite):
     def is_alive(self):
         """¿Está vivo?"""
         return self.hp > 0
+
+    def agregar_item(self, item_id, cantidad=1):
+        """Añade un artículo al inventario del jugador."""
+        self.inventario[item_id] = self.inventario.get(item_id, 0) + max(1, int(cantidad))
+        return self.inventario[item_id]
+
+    def ganar_experiencia(self, cantidad):
+        """Suma experiencia y actualiza el nivel sin bajar nunca de nivel 1."""
+        self.experiencia = max(0, self.experiencia + int(cantidad))
+        self.nivel = 1 + self.experiencia // 100
+        return self.nivel
 
     def draw(self, surface):
         """Dibuja el jugador"""

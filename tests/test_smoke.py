@@ -129,3 +129,29 @@ def test_every_runtime_module_imports():
     )
     for module_name in modules:
         assert importlib.import_module(module_name) is not None, module_name
+
+def test_main_game_shop_inventory_and_ammunition_work():
+    game = main.Juego()
+    game.jugador.puntos = 100
+    game.panel = "tienda"
+    game.gestionar_panel(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_1))
+    assert game.jugador.puntos == 60
+    assert game.jugador.inventario["pocion_vida"] == 1
+    game.jugador.vida = 40
+    game.panel = "inventario"
+    game.gestionar_panel(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_1))
+    assert game.jugador.vida == 75
+    assert "pocion_vida" not in game.jugador.inventario
+    game.jugador.agregar_item("balas_extra")
+    game.jugador.municion = 0
+    ok, _ = game.jugador.usar_item("balas_extra")
+    assert ok and game.jugador.municion == 10
+
+
+def test_main_player_defense_effect_reduces_damage():
+    player = main.Jugador()
+    player.efectos_activos["defensa"] = pygame.time.get_ticks() + 10000
+    player.invulnerable = 0
+    before = player.vida
+    player.recibir_daño(20)
+    assert player.vida == before - 10

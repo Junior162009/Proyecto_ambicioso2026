@@ -20,6 +20,8 @@ from game import Game
 from boss import Boss
 from levels import LevelManager
 from sistema_respuestas import SistemaRespuestas
+from misiones import SistemaMisiones
+from game import GameState
 
 
 def test_configuration_has_legacy_and_ui_constants():
@@ -82,3 +84,37 @@ def test_response_ui_initializes():
 def cleanup_pygame():
     yield
     pygame.quit()
+
+def test_legacy_level_completes_and_victory_can_restart():
+    game = Game(SCREEN)
+    game.enemies.clear()
+    game.update()
+    assert game.state == GameState.LEVEL_COMPLETE
+    game._handle_level_transition()
+    assert game.level_manager.current_level == 2
+    game.level_manager.current_level = game.level_manager.total_levels
+    game._init_level()
+    game.boss.hp = 0
+    game.update()
+    assert game.state == GameState.LEVEL_COMPLETE
+    game._handle_level_transition()
+    assert game.state == GameState.BOSS_DEFEATED
+    game._handle_level_transition()
+    assert game.state == GameState.PLAYING
+    assert game.level_manager.current_level == 1
+
+
+def test_missions_can_be_accepted_and_rewards_claimed_once():
+    missions = SistemaMisiones()
+    ok, _ = missions.aceptar_mision(1)
+    assert ok
+    assert len(missions.misiones_activas) == 1
+    for _ in range(5):
+        messages = missions.actualizar_mision_matando("Básico")
+    assert messages
+    player = Player(100, 100)
+    before = player.puntos
+    missions.reclamar_recompensas(player)
+    assert player.puntos == before + 100
+    missions.reclamar_recompensas(player)
+    assert player.puntos == before + 100

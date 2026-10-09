@@ -431,7 +431,10 @@ class Juego:
                         self.avisar("Enemigo derrotado: +15 puntos")
         for mensaje_progreso in self.progresion.verificar_progreso(self.jugador, self.mundo):
             self.avisar(mensaje_progreso)
-        self.misiones.actualizar_mision_nivel(self.jugador.nivel)
+        mensajes_nivel = self.misiones.actualizar_mision_nivel(self.jugador.nivel)
+        if mensajes_nivel:
+            self.misiones.reclamar_recompensas(self.jugador)
+            self.avisar(" ".join(mensajes_nivel))
         if self.jugador.vida <= 0:
             self.estado = "game_over"
 

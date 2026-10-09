@@ -15,6 +15,9 @@ from mapa import Mapa
 from npc import NPC
 from bala import Bala
 from cofre import Cofre, generar_operacion
+from tienda import Tienda
+from misiones import SistemaMisiones
+from progresion import ProgresionHistoria
 from settings import ANCHO, ALTO, TAM, FPS, TITLE, TEXTO_TITULO, TEXTO_NORMAL
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -60,11 +63,20 @@ class Jugador:
         self.enemigos_eliminados = 0
         self.operaciones = []
         self.inventario = {}
+        self.municion = 30
+        self.daño_disparo = 25
+        self.efectos_activos = {}
         self.cooldown_disparo = 0
         self.invulnerable = 0
         self.sprite = cargar_imagen(ASSETS / "sprites" / "jugador.png", (TAM, TAM), (55, 125, 245))
 
     def mover(self, teclas, paredes):
+        ahora = pygame.time.get_ticks()
+        self.velocidad = 6 if self.efectos_activos.get("velocidad", 0) > ahora else 4
+        self.daño_disparo = 38 if self.efectos_activos.get("fuerza", 0) > ahora else 25
+        for efecto, fin in list(self.efectos_activos.items()):
+            if fin <= ahora:
+                self.efectos_activos.pop(efecto, None)
         dx = (int(teclas[pygame.K_d] or teclas[pygame.K_RIGHT]) -
               int(teclas[pygame.K_a] or teclas[pygame.K_LEFT])) * self.velocidad
         dy = (int(teclas[pygame.K_s] or teclas[pygame.K_DOWN]) -
@@ -101,7 +113,28 @@ class Jugador:
         self.inventario[item_id] = self.inventario.get(item_id, 0) + max(1, int(cantidad))
         return self.inventario[item_id]
 
+    def usar_item(self, item_id):
+        if self.inventario.get(item_id, 0) <= 0:
+            return False, "No tienes ese objeto."
+        ahora = pygame.time.get_ticks()
+        if item_id == "pocion_vida":
+            self.vida = min(self.vida_maxima, self.vida + 35)
+        elif item_id == "balas_extra":
+            self.municion += 10
+        elif item_id in ("pocion_velocidad", "pocion_fuerza", "pocion_defensa"):
+            efecto = {"pocion_velocidad": "velocidad", "pocion_fuerza": "fuerza",
+                      "pocion_defensa": "defensa"}[item_id]
+            self.efectos_activos[efecto] = ahora + 30000
+        elif item_id in ("mapa", "llave"):
+            return True, "El objeto está en el inventario; las salidas actuales no requieren llave."
+        self.inventario[item_id] -= 1
+        if self.inventario[item_id] <= 0:
+            del self.inventario[item_id]
+        return True, f"Usaste {item_id.replace('_', ' ')}."
+
     def recibir_daño(self, cantidad):
+        if self.efectos_activos.get("defensa", 0) > pygame.time.get_ticks():
+            cantidad = max(1, cantidad // 2)
         if self.invulnerable <= 0:
             self.vida = max(0, self.vida - cantidad)
             self.invulnerable = 45
@@ -176,6 +209,10 @@ class Juego:
         self.area_visitada = set()
         self.area_anterior_id = None
         self.nivel = 1
+        self.tienda = Tienda()
+        self.misiones = SistemaMisiones()
+        self.progresion = ProgresionHistoria()
+        self.panel = None
         self.cargar_area(inicial=True)
 
     def avisar(self, mensaje, duracion=2600):
@@ -238,9 +275,41 @@ class Juego:
     def disparar(self, destino):
         if self.jugador.cooldown_disparo > 0 or self.estado != "jugando":
             return
+        if self.jugador.municion <= 0:
+            self.avisar("Sin munición. Compra cargadores en la tienda (T) y usa R para recargar.")
+            return
         sx, sy = self.jugador.rect.center
         self.balas.append(Bala(sx, sy, destino[0], destino[1], velocidad=11))
+        self.jugador.municion -= 1
         self.jugador.cooldown_disparo = 12
+
+    def gestionar_panel(self, evento):
+        """Procesa las opciones de tienda, inventario y misiones."""
+        atajos = {"tienda": pygame.K_t, "inventario": pygame.K_i,
+                  "misiones": pygame.K_q, "mapa": pygame.K_m}
+        if evento.key == pygame.K_ESCAPE or evento.key == atajos.get(self.panel):
+            self.panel = None
+            return
+        teclas_numero = (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4,
+                         pygame.K_5, pygame.K_6, pygame.K_7)
+        indice = next((i for i, tecla in enumerate(teclas_numero) if evento.key == tecla), None)
+        if indice is None:
+            return
+        if self.panel == "tienda":
+            catalogo = self.tienda.obtener_items_compra()
+            if indice < len(catalogo):
+                _, mensaje = self.tienda.comprar(catalogo[indice]["id"], self.jugador)
+                self.avisar(mensaje)
+        elif self.panel == "inventario":
+            objetos = list(self.jugador.inventario)
+            if indice < len(objetos):
+                _, mensaje = self.jugador.usar_item(objetos[indice])
+                self.avisar(mensaje)
+        elif self.panel == "misiones":
+            disponibles = self.misiones.misiones_disponibles
+            if indice < len(disponibles):
+                _, mensaje = self.misiones.aceptar_mision(disponibles[indice].id)
+                self.avisar(mensaje)
 
     def interactuar(self):
         if self.cofre_activo:
@@ -317,7 +386,7 @@ class Juego:
             self.respuesta += evento.unicode
 
     def actualizar(self):
-        if self.estado != "jugando":
+        if self.estado != "jugando" or self.panel is not None:
             return
         teclas = pygame.key.get_pressed()
         self.jugador.mover(teclas, self.mapa.paredes)
@@ -335,7 +404,7 @@ class Juego:
                 continue
             golpeado = next((e for e in self.enemigos if bala.rect.colliderect(e.rect)), None)
             if golpeado:
-                golpeado.vida -= 25
+                golpeado.vida -= self.jugador.daño_disparo
                 if bala in self.balas:
                     self.balas.remove(bala)
                 if golpeado.vida <= 0:
@@ -344,6 +413,9 @@ class Juego:
                     self.jugador.experiencia += 10
                     self.jugador.enemigos_eliminados += 1
                     self.avisar("Enemigo derrotado: +15 puntos")
+        for mensaje_progreso in self.progresion.verificar_progreso(self.jugador, self.mundo):
+            self.avisar(mensaje_progreso)
+        self.misiones.actualizar_mision_nivel(self.jugador.nivel)
         if self.jugador.vida <= 0:
             self.estado = "game_over"
 
@@ -379,7 +451,7 @@ class Juego:
         texto(PANTALLA, f"VIDA {self.jugador.vida}/{self.jugador.vida_maxima}", 244, 23, self.fuente)
         texto(PANTALLA, f"⭐ {self.jugador.puntos}   XP {self.jugador.experiencia}", 24, 53, self.fuente)
         texto(PANTALLA, f"{self.mundo.area_actual.nombre}  |  Enemigos: {len(self.enemigos)}", 18, ALTO - 34, self.fuente)
-        texto(PANTALLA, "WASD mover · clic disparar · E interactuar · ESC salir", 420, 16, self.fuente)
+        texto(PANTALLA, f"WASD mover · clic disparar · E interactuar · T tienda · Q misiones · I inventario · M mapa · Munición {self.jugador.municion}", 360, 16, self.fuente)
 
         if pygame.time.get_ticks() < self.mensaje_hasta:
             panel = pygame.Surface((ANCHO - 100, 42), pygame.SRCALPHA)
@@ -396,6 +468,40 @@ class Juego:
             texto(PANTALLA, f"{self.cofre_activo.operacion} = ?", ANCHO // 2 - 200, ALTO // 2 - 25, self.fuente_grande)
             texto(PANTALLA, f"Respuesta: {self.respuesta}_", ANCHO // 2 - 200, ALTO // 2 + 20, self.fuente)
             texto(PANTALLA, "ENTER confirmar · BACKSPACE borrar", ANCHO // 2 - 200, ALTO // 2 + 55, self.fuente)
+
+        if self.panel is not None:
+            overlay = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
+            overlay.fill((8, 10, 18, 220))
+            PANTALLA.blit(overlay, (0, 0))
+            pygame.draw.rect(PANTALLA, (210, 170, 80), (ANCHO // 2 - 300, 80, 600, ALTO - 160), 3, border_radius=12)
+            titulos = {"tienda": "TIENDA · pulsa 1-7 para comprar",
+                       "inventario": "INVENTARIO · pulsa un número para usar",
+                       "misiones": "MISIONES · pulsa un número para aceptar",
+                       "mapa": "MAPA DEL MUNDO"}
+            texto(PANTALLA, titulos.get(self.panel, "PANEL"), ANCHO // 2 - 270, 105, self.fuente_grande, TEXTO_TITULO)
+            lineas = []
+            if self.panel == "tienda":
+                lineas = [f"{i+1}. {item['nombre']} — {item['precio']} puntos ({item['efecto']})"
+                          for i, item in enumerate(self.tienda.obtener_items_compra())]
+                lineas.append(f"Puntos disponibles: {self.jugador.puntos}")
+            elif self.panel == "inventario":
+                lineas = [f"{i+1}. {item} × {cantidad}" for i, (item, cantidad) in enumerate(self.jugador.inventario.items())]
+                lineas.append(f"Munición actual: {self.jugador.municion}")
+                if not self.jugador.inventario:
+                    lineas.append("Inventario vacío. Pulsa T para comprar objetos.")
+            elif self.panel == "misiones":
+                lineas = [f"{i+1}. {m.titulo} — {m.progreso}/{m.cantidad}"
+                          for i, m in enumerate(self.misiones.misiones_disponibles)]
+                lineas.append("Activas: " + (", ".join(m.titulo for m in self.misiones.misiones_activas) or "ninguna"))
+                if not self.misiones.misiones_disponibles:
+                    lineas.append("No quedan misiones disponibles.")
+            elif self.panel == "mapa":
+                lineas = [f"{area.id}. {area.nombre} — {'visitada' if area.explorada else 'sin explorar'}"
+                          for area in self.mundo.areas.values()]
+                lineas.append("Acércate a una salida y pulsa E para viajar.")
+            for i, linea in enumerate(lineas[:12]):
+                texto(PANTALLA, linea, ANCHO // 2 - 270, 155 + i * 32, self.fuente)
+            texto(PANTALLA, "Pulsa la misma tecla o ESC para cerrar", ANCHO // 2 - 200, ALTO - 110, self.fuente, TEXTO_TITULO)
 
         if self.estado == "game_over":
             overlay = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
@@ -422,8 +528,21 @@ class Juego:
                         self.cargar_area(inicial=True)
                     elif self.cofre_activo:
                         self.comprobar_respuesta(evento)
+                    elif self.panel is not None:
+                        self.gestionar_panel(evento)
                     elif evento.key == pygame.K_e:
                         self.interactuar()
+                    elif evento.key == pygame.K_t:
+                        self.panel = "tienda"
+                    elif evento.key == pygame.K_i:
+                        self.panel = "inventario"
+                    elif evento.key == pygame.K_q:
+                        self.panel = "misiones"
+                    elif evento.key == pygame.K_m:
+                        self.panel = "mapa"
+                    elif evento.key == pygame.K_r:
+                        ok, mensaje = self.jugador.usar_item("balas_extra")
+                        self.avisar(mensaje if ok else "No tienes cargadores extra. Compra uno en la tienda (T).")
                 elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
                     if not self.cofre_activo and self.estado == "jugando":
                         mouse = pygame.mouse.get_pos()

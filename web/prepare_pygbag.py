@@ -3,8 +3,8 @@
 Uso desde la raíz del repositorio:
     python web/prepare_pygbag.py
 
-Genera .pygbag_src/ con el proyecto completo y un main.py adaptado al bucle
-asíncrono requerido por Pygbag.
+Genera .pygbag_src/ con el proyecto completo y adapta Juego.ejecutar()
+a una corrutina que cede el control al navegador en cada fotograma.
 """
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 STAGING = ROOT / ".pygbag_src"
-EXCLUDE_DIRS = {".git", ".github", ".pytest_cache", ".venv", "venv", "build", "dist", ".pygbag_src"}
-EXCLUDE_FILES = {".DS_Store"}
+EXCLUDE_DIRS = {".git", ".github", ".pytest_cache", ".venv", "venv", "build", "dist", ".pygbag_src", "__pycache__"}
+EXCLUDE_FILES = {".DS_Store", ".gitignore.respaldo"}
 
 
 def copy_project() -> None:
@@ -27,7 +27,7 @@ def copy_project() -> None:
             continue
         destination = STAGING / item.name
         if item.is_dir():
-            shutil.copytree(item, destination)
+            shutil.copytree(item, destination, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache"))
         elif item.is_file():
             shutil.copy2(item, destination)
 
@@ -36,56 +36,78 @@ def adapt_main() -> None:
     source_path = STAGING / "main.py"
     source = source_path.read_text(encoding="utf-8")
     tree = ast.parse(source)
-
-    # Si ya está adaptado, no lo vuelvas a envolver.
-    if any(isinstance(node, ast.AsyncFunctionDef) and node.name == "main" for node in tree.body):
-        if "asyncio.run(main())" in source:
-            return
-
-    module_while = next((node for node in tree.body if isinstance(node, ast.While)), None)
-    if module_while is None:
-        raise RuntimeError(
-            "No se encontró el bucle principal while en main.py. "
-            "La adaptación automática fue detenida para no alterar el juego."
-        )
-
     lines = source.splitlines()
-    start = module_while.lineno - 1
-    prefix = lines[:start]
-    loop_and_tail = lines[start:]
 
-    while_indent = len(loop_and_tail[0]) - len(loop_and_tail[0].lstrip())
-    if while_indent != 0:
-        raise RuntimeError("El bucle principal no está al nivel superior del archivo.")
-    if not module_while.body:
-        raise RuntimeError("El bucle principal no tiene cuerpo.")
+    # El bucle principal está dentro de Juego.ejecutar(), no al nivel superior.
+    juego = next(
+        (node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Juego"),
+        None,
+    )
+    if juego is None:
+        raise RuntimeError("No se encontró la clase Juego; no se modificó la copia.")
 
-    # El yield se ejecuta una vez por frame para devolver el control al navegador.
-    first_body_line = module_while.body[0].lineno - module_while.lineno
-    insertion = max(1, first_body_line)
-    loop_and_tail.insert(insertion, "    await asyncio.sleep(0)")
-    loop_and_tail = ["    " + line if line else line for line in loop_and_tail]
+    ejecutar = next(
+        (node for node in juego.body
+         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "ejecutar"),
+        None,
+    )
+    if ejecutar is None:
+        raise RuntimeError("No se encontró Juego.ejecutar(); no se modificó la copia.")
 
-    if not any(line.strip() == "import asyncio" for line in prefix):
-        import_pos = 0
-        for i, line in enumerate(prefix):
-            if line.startswith("import ") or line.startswith("from "):
-                import_pos = i + 1
-        prefix.insert(import_pos, "import asyncio")
+    bucle = next((node for node in ast.walk(ejecutar) if isinstance(node, ast.While)), None)
+    if bucle is None or not bucle.body:
+        raise RuntimeError("No se encontró el bucle principal; no se modificó la copia.")
 
-    adapted = prefix + ["", "", "async def main():"] + loop_and_tail + ["", "", "asyncio.run(main())", ""]
-    source = "\n".join(adapted)
+    # Convierte el método en asíncrono, únicamente en la copia web.
+    if isinstance(ejecutar, ast.FunctionDef):
+        idx = ejecutar.lineno - 1
+        lines[idx] = lines[idx].replace("def ejecutar(", "async def ejecutar(", 1)
 
-    # En navegador no usamos pygame.FULLSCREEN del escritorio: el canvas de Pygbag
-    # se escala al espacio disponible y el navegador conserva su propio fullscreen.
+    # Cede el control al navegador una vez por fotograma.
+    if "await asyncio.sleep(0)" not in source:
+        tick_node = next(
+            (node for node in ast.walk(bucle)
+             if isinstance(node, ast.Expr)
+             and isinstance(node.value, ast.Call)
+             and isinstance(node.value.func, ast.Attribute)
+             and node.value.func.attr == "tick"),
+            None,
+        )
+        if tick_node is not None:
+            lines.insert(tick_node.end_lineno, " " * tick_node.col_offset + "await asyncio.sleep(0)")
+        else:
+            first = bucle.body[0]
+            lines.insert(first.lineno - 1, " " * first.col_offset + "await asyncio.sleep(0)")
+
+    source = "\n".join(lines) + "\n"
+    if "import asyncio" not in source:
+        source = source.replace("import math\n", "import asyncio\nimport math\n", 1)
+
+    # El punto de entrada debe esperar la corrutina.
+    source = source.replace("Juego().ejecutar()", "asyncio.run(Juego().ejecutar())")
+
+    # En navegador se utiliza un canvas escalado, no fullscreen exclusivo.
     source = source.replace(
-        'PANTALLA = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)',
+        "PANTALLA = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)",
         'PANTALLA = pygame.display.set_mode((ANCHO, ALTO), pygame.SCALED | pygame.RESIZABLE) if sys.platform == "emscripten" else pygame.display.set_mode((0, 0), pygame.FULLSCREEN)',
+        1,
     )
     source = source.replace(
-        '    if PANTALLA.get_flags() & pygame.FULLSCREEN:\n        PANTALLA = pygame.display.set_mode(_VENTANA_TAM, pygame.RESIZABLE)\n    else:\n        PANTALLA = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)',
-        '    if sys.platform == "emscripten":\n        PANTALLA = pygame.display.set_mode((ANCHO, ALTO), pygame.SCALED | pygame.RESIZABLE)\n    elif PANTALLA.get_flags() & pygame.FULLSCREEN:\n        PANTALLA = pygame.display.set_mode(_VENTANA_TAM, pygame.RESIZABLE)\n    else:\n        PANTALLA = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)',
+        "    if PANTALLA.get_flags() & pygame.FULLSCREEN:\n"
+        "        PANTALLA = pygame.display.set_mode(_VENTANA_TAM, pygame.RESIZABLE)\n"
+        "    else:\n"
+        "        PANTALLA = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)",
+        "    if sys.platform == \"emscripten\":\n"
+        "        PANTALLA = pygame.display.set_mode((ANCHO, ALTO), pygame.SCALED | pygame.RESIZABLE)\n"
+        "    elif PANTALLA.get_flags() & pygame.FULLSCREEN:\n"
+        "        PANTALLA = pygame.display.set_mode(_VENTANA_TAM, pygame.RESIZABLE)\n"
+        "    else:\n"
+        "        PANTALLA = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)",
+        1,
     )
+
+    # Comprueba sintaxis antes de escribir la copia preparada.
+    ast.parse(source)
     source_path.write_text(source, encoding="utf-8")
 
 

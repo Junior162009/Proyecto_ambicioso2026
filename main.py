@@ -62,8 +62,18 @@ def cargar_imagen(ruta, tamaño, color_respaldo):
     return imagen
 
 
+# Caché acotada de texto: evita volver a rasterizar etiquetas idénticas cada fotograma.
+_CACHE_TEXTO = {}
+
+
 def texto(superficie, mensaje, x, y, fuente, color=TEXTO_NORMAL):
-    imagen = fuente.render(str(mensaje), True, color)
+    clave = (id(fuente), str(mensaje), color)
+    imagen = _CACHE_TEXTO.get(clave)
+    if imagen is None:
+        imagen = fuente.render(str(mensaje), True, color)
+        if len(_CACHE_TEXTO) >= 2048:
+            _CACHE_TEXTO.pop(next(iter(_CACHE_TEXTO)))
+        _CACHE_TEXTO[clave] = imagen
     superficie.blit(imagen, (x, y))
 
 

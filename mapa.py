@@ -14,16 +14,33 @@ class Mapa:
         self.suelo_img = suelo_img
         self.pared_img = pared_img
         self.paredes = []
+        self._paredes_por_celda = {}
         self._capa_mapa = None
         self._construir_paredes()
         self._construir_capa_mapa()
 
     def _construir_paredes(self):
-        self.paredes = [
-            pygame.Rect(x * TAM, y * TAM, TAM, TAM)
-            for y, fila in enumerate(self.nivel)
-            for x, tile in enumerate(fila)
-            if tile in TILES_PARED
+        self.paredes = []
+        self._paredes_por_celda = {}
+        for y, fila in enumerate(self.nivel):
+            for x, tile in enumerate(fila):
+                if tile in TILES_PARED:
+                    pared = pygame.Rect(x * TAM, y * TAM, TAM, TAM)
+                    self.paredes.append(pared)
+                    self._paredes_por_celda[(x, y)] = pared
+
+    def paredes_cercanas(self, rect, margen=1):
+        """Devuelve solo paredes de las celdas cercanas a un objeto."""
+        x0 = max(0, rect.left // TAM - margen)
+        y0 = max(0, rect.top // TAM - margen)
+        x1 = min(max((len(fila) for fila in self.nivel), default=1) - 1,
+                 rect.right // TAM + margen)
+        y1 = min(len(self.nivel) - 1, rect.bottom // TAM + margen)
+        return [
+            pared
+            for y in range(y0, y1 + 1)
+            for x in range(x0, x1 + 1)
+            if (pared := self._paredes_por_celda.get((x, y))) is not None
         ]
 
     def _construir_capa_mapa(self):

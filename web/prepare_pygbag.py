@@ -89,7 +89,7 @@ def adapt_main() -> None:
     # En navegador se utiliza un canvas escalado, no fullscreen exclusivo.
     source = source.replace(
         "PANTALLA = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)",
-        'PANTALLA = pygame.display.set_mode((ANCHO, ALTO), pygame.SCALED | pygame.RESIZABLE) if sys.platform == "emscripten" else pygame.display.set_mode((0, 0), pygame.FULLSCREEN)',
+        'PANTALLA = pygame.display.set_mode((960, 540), pygame.SCALED | pygame.RESIZABLE) if sys.platform == "emscripten" else pygame.display.set_mode((0, 0), pygame.FULLSCREEN)',
         1,
     )
     source = source.replace(
@@ -98,7 +98,7 @@ def adapt_main() -> None:
         "    else:\n"
         "        PANTALLA = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)",
         "    if sys.platform == \"emscripten\":\n"
-        "        PANTALLA = pygame.display.set_mode((ANCHO, ALTO), pygame.SCALED | pygame.RESIZABLE)\n"
+        "        PANTALLA = pygame.display.set_mode((960, 540), pygame.SCALED | pygame.RESIZABLE)\n"
         "    elif PANTALLA.get_flags() & pygame.FULLSCREEN:\n"
         "        PANTALLA = pygame.display.set_mode(_VENTANA_TAM, pygame.RESIZABLE)\n"
         "    else:\n"

@@ -37,6 +37,18 @@ def test_all_math_chest_operation_types_return_numeric_answers():
         assert isinstance(answer, int)
 
 
+def test_chest_uses_original_assets_and_cannot_be_resolved_twice():
+    chest = Cofre(96, 96)
+    assert chest.rect.size == (settings.TAM, settings.TAM)
+    assert chest.img.get_size() == (settings.TAM, settings.TAM)
+    assert chest.img_abierto.get_size() == (settings.TAM, settings.TAM)
+    assert chest.abrir()
+    assert chest.resolver()
+    assert not chest.resolver()
+    assert chest.puede_reclamar_recompensa()
+    assert not chest.puede_reclamar_recompensa()
+
+
 def test_world_has_valid_bidirectional_routes():
     world = Mundo()
     for area in world.areas.values():
@@ -85,6 +97,7 @@ def cleanup_pygame():
     yield
     pygame.quit()
 
+
 def test_legacy_level_completes_and_victory_can_restart():
     game = Game(SCREEN)
     game.enemies.clear()
@@ -119,6 +132,7 @@ def test_missions_can_be_accepted_and_rewards_claimed_once():
     missions.reclamar_recompensas(player)
     assert player.puntos == before + 100
 
+
 def test_every_runtime_module_imports():
     import importlib
     modules = (
@@ -129,6 +143,7 @@ def test_every_runtime_module_imports():
     )
     for module_name in modules:
         assert importlib.import_module(module_name) is not None, module_name
+
 
 def test_main_game_shop_inventory_and_ammunition_work():
     game = main.Juego()
@@ -156,6 +171,7 @@ def test_main_player_defense_effect_reduces_damage():
     player.recibir_daño(20)
     assert player.vida == before - 10
 
+
 def test_map_and_key_items_work_from_inventory():
     game = main.Juego()
     game.jugador.puntos = 100
@@ -170,6 +186,7 @@ def test_map_and_key_items_work_from_inventory():
     assert "llave" not in game.jugador.inventario
     assert game.panel is None
 
+
 def test_generated_areas_always_have_a_spawn_tile():
     from mundo import AreaMundo
     for _ in range(12):
@@ -178,6 +195,8 @@ def test_generated_areas_always_have_a_spawn_tile():
             AreaMundo(2, "Cueva", "cueva", (25, 25), 5),
         ):
             assert any("P" in fila for fila in area.mapa)
+
+
 def test_main_side_panel_renders_active_chest_question():
     game = main.Juego()
     chest = game.cofres[0] if game.cofres else main.Cofre(96, 96)
@@ -185,7 +204,8 @@ def test_main_side_panel_renders_active_chest_question():
         game.cofres.append(chest)
     game.cofre_activo = chest
     game.respuesta = "12"
-    game.dibujar()  # Includes the persistent right-side question panel.
+    game.dibujar()
+
 
 def test_enemy_types_do_not_all_chase_and_ranged_enemy_fires():
     player = main.Jugador()
@@ -195,7 +215,7 @@ def test_enemy_types_do_not_all_chase_and_ranged_enemy_fires():
     passive.radio_alerta = 300
     passive_before = passive.rect.copy()
     passive.actualizar(player, walls)
-    assert passive.rect == passive_before  # Outside its flee radius; never chases.
+    assert passive.rect == passive_before
 
     aggressive = main.Enemigo(210, 64)
     aggressive.tipo = "agresivo"

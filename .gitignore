@@ -1,1 +1,4 @@
 env/
+.pygbag_src/
+build/
+dist/

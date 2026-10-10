@@ -304,6 +304,11 @@ class Juego:
         self.misiones = SistemaMisiones()
         self.progresion = ProgresionHistoria()
         self.panel = None
+        self.zoom = 1.4
+        self._vista_mundo = None
+        self._recorte_zoom = None
+        self._tamaño_vista = None
+        self._tamaño_recorte = None
         self.cargar_area(inicial=True)
 
     def avisar(self, mensaje, duracion=2600):
@@ -627,7 +632,7 @@ class Juego:
             y = escribir("Misiones activas: {}".format(len(self.misiones.misiones_activas)), y)
             y += 8
             y = escribir("CONTROLES", y, fuente, (130, 205, 255))
-            for control in ("WASD / flechas: mover", "Clic en mundo: disparar", "E: interactuar / abrir cofre", "T: tienda · I: inventario", "Q: misiones · M: mapa", "F11: alternar pantalla", "ESC: cerrar panel / salir"):
+            for control in ("WASD / flechas: mover", "Clic en mundo: disparar", "E: interactuar / abrir cofre", "T: tienda · I: inventario", "Q: misiones · M: mapa", "F11: alternar pantalla", "+ / -: ajustar zoom", "ESC: cerrar panel / salir"):
                 y = escribir(control, y, fuente_peq)
         if pygame.time.get_ticks() < self.mensaje_hasta:
             msg_y = max(y + 8, ALTO - 120)
@@ -636,33 +641,65 @@ class Juego:
             escribir(self.mensaje, msg_y, fuente_peq, (255, 235, 175))
     def dibujar(self):
         PANTALLA.fill((18, 25, 30))
+        tamaño_vista = (max(1, ANCHO_MUNDO), max(1, ALTO))
+        if self._vista_mundo is None or self._tamaño_vista != tamaño_vista:
+            self._vista_mundo = pygame.Surface(tamaño_vista)
+            self._tamaño_vista = tamaño_vista
+            self._recorte_zoom = None
+            self._tamaño_recorte = None
+        superficie_mundo = self._vista_mundo
+        superficie_mundo.fill((18, 25, 30))
         ancho_mundo = len(self.mapa.nivel[0]) * TAM
         alto_mundo = len(self.mapa.nivel) * TAM
         cam_x = max(0, min(self.jugador.rect.centerx - ANCHO_MUNDO // 2, ancho_mundo - ANCHO_MUNDO))
         cam_y = max(0, min(self.jugador.rect.centery - ALTO // 2, alto_mundo - ALTO))
-        self.mapa.dibujar_suelo(PANTALLA, cam_x, cam_y)
-        self.mapa.dibujar_paredes(PANTALLA, cam_x, cam_y)
+        self.mapa.dibujar_suelo(superficie_mundo, cam_x, cam_y)
+        self.mapa.dibujar_paredes(superficie_mundo, cam_x, cam_y)
 
         for puerta in self.puertas:
-            pygame.draw.rect(PANTALLA, (145, 90, 45), puerta.move(-cam_x, -cam_y))
-            pygame.draw.rect(PANTALLA, (240, 190, 75), puerta.move(-cam_x, -cam_y), 2)
+            pygame.draw.rect(superficie_mundo, (145, 90, 45), puerta.move(-cam_x, -cam_y))
+            pygame.draw.rect(superficie_mundo, (240, 190, 75), puerta.move(-cam_x, -cam_y), 2)
         for cofre in self.cofres:
             r = cofre.rect.move(-cam_x, -cam_y)
             img_path = ASSETS / "objetos" / ("cofre_abierto.png" if cofre.resuelto else "cofre_cerrado.png")
             if img_path.is_file():
                 img = cargar_imagen(img_path, (TAM, TAM), (170, 115, 45))
-                PANTALLA.blit(img, r)
+                superficie_mundo.blit(img, r)
             else:
-                cofre.dibujar(PANTALLA, cam_x, cam_y)
+                cofre.dibujar(superficie_mundo, cam_x, cam_y)
         for npc in self.npcs:
-            npc.dibujar(PANTALLA, cam_x, cam_y)
+            npc.dibujar(superficie_mundo, cam_x, cam_y)
         for bala in self.balas:
-            bala.dibujar(PANTALLA, cam_x, cam_y)
+            bala.dibujar(superficie_mundo, cam_x, cam_y)
         for disparo in self.disparos_enemigos:
-            disparo.dibujar(PANTALLA, cam_x, cam_y)
+            disparo.dibujar(superficie_mundo, cam_x, cam_y)
         for enemigo in self.enemigos:
-            enemigo.dibujar(PANTALLA, cam_x, cam_y)
-        self.jugador.dibujar(PANTALLA, cam_x, cam_y)
+            enemigo.dibujar(superficie_mundo, cam_x, cam_y)
+        self.jugador.dibujar(superficie_mundo, cam_x, cam_y)
+
+        # Zoom centrado en el jugador; el HUD y el panel quedan nítidos y sin ampliar.
+        ancho_recorte = max(1, min(ANCHO_MUNDO, int(ANCHO_MUNDO / self.zoom)))
+        alto_recorte = max(1, min(ALTO, int(ALTO / self.zoom)))
+        tamaño_recorte = (ancho_recorte, alto_recorte)
+        if self._recorte_zoom is None or self._tamaño_recorte != tamaño_recorte:
+            self._recorte_zoom = pygame.Surface(tamaño_recorte)
+            self._tamaño_recorte = tamaño_recorte
+        recorte = self._recorte_zoom
+        recorte.fill((18, 25, 30))
+        centro_x = int(self.jugador.rect.centerx - cam_x)
+        centro_y = int(self.jugador.rect.centery - cam_y)
+        origen_x = centro_x - ancho_recorte // 2
+        origen_y = centro_y - alto_recorte // 2
+        zona_visible = pygame.Rect(origen_x, origen_y, ancho_recorte, alto_recorte)
+        zona_fuente = zona_visible.clip(superficie_mundo.get_rect())
+        if zona_fuente.width > 0 and zona_fuente.height > 0:
+            recorte.blit(
+                superficie_mundo,
+                (zona_fuente.x - origen_x, zona_fuente.y - origen_y),
+                zona_fuente,
+            )
+        vista_ampliada = pygame.transform.scale(recorte, (ANCHO_MUNDO, ALTO))
+        PANTALLA.blit(vista_ampliada, (0, 0))
 
         # HUD
         pygame.draw.rect(PANTALLA, (35, 30, 42), (12, 12, 330, 78), border_radius=10)
@@ -734,6 +771,12 @@ class Juego:
                 elif evento.type == pygame.KEYDOWN:
                     if evento.key == pygame.K_F11:
                         alternar_pantalla()
+                    elif evento.unicode in ("+", "="):
+                        self.zoom = min(1.8, round(self.zoom + 0.1, 2))
+                        self.avisar(f"Zoom: {self.zoom:.1f}x", 1200)
+                    elif evento.unicode == "-":
+                        self.zoom = max(1.0, round(self.zoom - 0.1, 2))
+                        self.avisar(f"Zoom: {self.zoom:.1f}x", 1200)
                     elif evento.key == pygame.K_ESCAPE and self.cofre_activo:
                         self.cofre_activo.abierto = False
                         self.cofre_activo = None

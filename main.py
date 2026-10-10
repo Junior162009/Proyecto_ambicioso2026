@@ -64,6 +64,17 @@ def cargar_imagen(ruta, tamaño, color_respaldo):
 
 # Caché acotada de texto: evita volver a rasterizar etiquetas idénticas cada fotograma.
 _CACHE_TEXTO = {}
+_CACHE_FUENTES = {}
+_CACHE_ETIQUETAS_ENEMIGO = {}
+
+
+def fuente_cacheada(tamaño):
+    """Reutiliza fuentes para no crear objetos Font durante cada fotograma."""
+    fuente = _CACHE_FUENTES.get(tamaño)
+    if fuente is None:
+        fuente = pygame.font.Font(None, tamaño)
+        _CACHE_FUENTES[tamaño] = fuente
+    return fuente
 
 
 def texto(superficie, mensaje, x, y, fuente, color=TEXTO_NORMAL):
@@ -245,7 +256,11 @@ class Enemigo:
         pygame.draw.ellipse(pantalla, self.color, r)
         pygame.draw.ellipse(pantalla, (35, 25, 35), r, 2)
         etiquetas = {"patrullero": "PATRULLA", "guardian": "GUARDIA", "pasivo": "NEUTRAL", "agresivo": "AGRESIVO", "distancia": "DISTANCIA", "jefe": "JEFE"}
-        etiqueta_img = pygame.font.Font(None, 16).render(etiquetas.get(self.tipo, "ENEMIGO"), True, (245, 245, 245))
+        clave_etiqueta = etiquetas.get(self.tipo, "ENEMIGO")
+        etiqueta_img = _CACHE_ETIQUETAS_ENEMIGO.get(clave_etiqueta)
+        if etiqueta_img is None:
+            etiqueta_img = fuente_cacheada(16).render(clave_etiqueta, True, (245, 245, 245))
+            _CACHE_ETIQUETAS_ENEMIGO[clave_etiqueta] = etiqueta_img
         pantalla.blit(etiqueta_img, (r.centerx - etiqueta_img.get_width() // 2, r.y - 23))
         ancho = r.width
         pygame.draw.rect(pantalla, (50, 20, 25), (r.x, r.y - 8, ancho, 5))
@@ -567,9 +582,9 @@ class Juego:
         pygame.draw.line(PANTALLA, (210, 170, 80), (x, 0), (x, ALTO), 3)
         margen = 14
         ancho_texto = max(100, ANCHO_PANEL - margen * 2)
-        fuente_titulo = pygame.font.Font(None, max(24, min(34, ANCHO_PANEL // 8)))
-        fuente = pygame.font.Font(None, max(19, min(26, ANCHO_PANEL // 10)))
-        fuente_peq = pygame.font.Font(None, max(17, min(22, ANCHO_PANEL // 12)))
+        fuente_titulo = fuente_cacheada(max(24, min(34, ANCHO_PANEL // 8)))
+        fuente = fuente_cacheada(max(19, min(26, ANCHO_PANEL // 10)))
+        fuente_peq = fuente_cacheada(max(17, min(22, ANCHO_PANEL // 12)))
         def escribir(mensaje, y, font=fuente, color=(235, 238, 245)):
             linea = ""
             for palabra in str(mensaje).split():
@@ -578,11 +593,11 @@ class Juego:
                     linea = prueba
                 else:
                     if linea:
-                        PANTALLA.blit(font.render(linea, True, color), (x + margen, y))
+                        texto(PANTALLA, linea, x + margen, y, font, color)
                         y += font.get_linesize() + 2
                     linea = palabra
             if linea:
-                PANTALLA.blit(font.render(linea, True, color), (x + margen, y))
+                texto(PANTALLA, linea, x + margen, y, font, color)
                 y += font.get_linesize() + 2
             return y
         y = 14

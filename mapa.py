@@ -48,7 +48,7 @@ class Mapa:
         alto = max(1, len(self.nivel) * TAM)
         ancho = max(1, max((len(fila) for fila in self.nivel), default=1) * TAM)
         # Sin SRCALPHA: el blit por fotograma no necesita mezclar canales alfa.
-        capa = pygame.Surface((ancho, alto)).convert()
+        capa = pygame.Surface((ancho, alto))
         capa.fill((70, 115, 70))
 
         for y, fila in enumerate(self.nivel):

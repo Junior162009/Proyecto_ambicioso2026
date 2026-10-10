@@ -525,17 +525,20 @@ class Juego:
         if self.estado != "jugando" or self.panel is not None:
             return
         teclas = pygame.key.get_pressed()
-        self.jugador.mover(teclas, self.mapa.paredes)
+        paredes_jugador = self.mapa.paredes_cercanas(self.jugador.rect.inflate(16, 16))
+        self.jugador.mover(teclas, paredes_jugador)
 
         for enemigo in self.enemigos[:]:
-            enemigo.actualizar(self.jugador, self.mapa.paredes)
+            paredes_enemigo = self.mapa.paredes_cercanas(enemigo.rect.inflate(16, 16))
+            enemigo.actualizar(self.jugador, paredes_enemigo)
             if enemigo.disparo_pendiente:
                 dx, dy = enemigo.disparo_pendiente
                 self.disparos_enemigos.append(ProyectilEnemigo(enemigo.rect.centerx, enemigo.rect.centery, dx, dy, max(4, enemigo.daño - 1)))
         for disparo in self.disparos_enemigos[:]:
             disparo.mover()
             fuera = (disparo.rect.right < 0 or disparo.rect.left > len(self.mapa.nivel[0]) * TAM or disparo.rect.bottom < 0 or disparo.rect.top > len(self.mapa.nivel) * TAM)
-            if fuera or any(disparo.rect.colliderect(p) for p in self.mapa.paredes):
+            paredes_disparo = self.mapa.paredes_cercanas(disparo.rect.inflate(12, 12))
+            if fuera or any(disparo.rect.colliderect(p) for p in paredes_disparo):
                 self.disparos_enemigos.remove(disparo)
                 continue
             if disparo.rect.colliderect(self.jugador.rect):
@@ -547,7 +550,8 @@ class Juego:
                     bala.rect.bottom < 0 or bala.rect.top > len(self.mapa.nivel) * TAM):
                 self.balas.remove(bala)
                 continue
-            if any(bala.rect.colliderect(p) for p in self.mapa.paredes):
+            paredes_bala = self.mapa.paredes_cercanas(bala.rect.inflate(12, 12))
+            if any(bala.rect.colliderect(p) for p in paredes_bala):
                 self.balas.remove(bala)
                 continue
             golpeado = next((e for e in self.enemigos if bala.rect.colliderect(e.rect)), None)

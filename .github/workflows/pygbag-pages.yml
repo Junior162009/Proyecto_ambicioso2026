@@ -1,0 +1,68 @@
+name: Pygbag Web
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install Pygbag
+        run: python -m pip install --upgrade pip pygbag==0.9.3
+
+      - name: Prepare web source
+        env:
+          PYTHONUTF8: '1'
+          PYTHONIOENCODING: utf-8
+        run: python web/prepare_pygbag.py
+
+      - name: Build WebAssembly game
+        env:
+          PYTHONUTF8: '1'
+          PYTHONIOENCODING: utf-8
+        run: python -m pygbag --build --ume_block=0 --app_name "Proyecto Ambicioso 2026" --title "Proyecto Ambicioso 2026" .pygbag_src
+
+      - name: Check generated site
+        run: |
+          test -f .pygbag_src/build/web/index.html
+          echo "Pygbag build OK"
+          du -sh .pygbag_src/build/web
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: .pygbag_src/build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

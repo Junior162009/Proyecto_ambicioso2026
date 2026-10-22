@@ -134,7 +134,10 @@ def test_every_runtime_module_imports():
         "progresion", "puerta", "settings", "sistema_respuestas", "tienda", "ui",
     )
     for module_name in modules:
-        assert importlib.import_module(module_name) is not None, module_namedef test_generated_areas_always_have_a_spawn_tile():
+        assert importlib.import_module(module_name) is not None, module_name
+
+
+def test_generated_areas_always_have_a_spawn_tile():
     from mundo import AreaMundo
     for _ in range(12):
         for area in (

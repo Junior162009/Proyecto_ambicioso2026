@@ -75,7 +75,10 @@ def test_legacy_game_can_initialize_with_compatibility_modules():
     boss = Boss(300, 200)
     assert boss.is_alive()
     boss.take_damage(50)
-    assert boss.hp == boss.max_hp - 50def test_response_ui_initializes():
+    assert boss.hp == boss.max_hp - 50
+
+
+def test_response_ui_initializes():
     ui = SistemaRespuestas(None)
     assert not ui.activo
     assert ui.respuesta_actual == ""

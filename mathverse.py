@@ -34,32 +34,51 @@ QUESTIONS = {
         ("Completa: 2, 4, 8, 16, ...", ["20", "24", "30", "32"], 3),
         ("¿Cuál es el 25% de 80?", ["10", "15", "20", "25"], 2),
         ("Si x + 7 = 19, ¿cuánto vale x?", ["10", "11", "12", "13"], 2),
+        ("¿Cuánto es 3/4 de 20?", ["10", "12", "15", "16"], 2),
+        ("Si 5 cuadernos cuestan $15, ¿cuánto cuestan 2?", ["$3", "$5", "$6", "$8"], 2),
     ],
     1: [
         ("What does 'brave' mean?", ["Valiente", "Rápido", "Triste", "Pequeño"], 0),
         ("Choose the correct sentence.", ["She are happy.", "She is happy.", "She am happy.", "She be happy."], 1),
         ("Opposite of 'early'", ["Fast", "Late", "Near", "Easy"], 1),
         ("'Book' as a verb means...", ["Reservar", "Cocinar", "Cerrar", "Pintar"], 0),
+        ("What does 'piece of cake' mean?", ["Muy difícil", "Muy fácil", "Muy caro", "Muy tarde"], 1),
+        ("Complete: They ___ football every Sunday.", ["plays", "playing", "play", "played"], 2),
     ],
     2: [
         ("¿Cuál palabra está escrita correctamente?", ["Exepción", "Excepción", "Ecepción", "Exsepción"], 1),
         ("Sinónimo de 'rápido'", ["Lento", "Veloz", "Pesado", "Lejano"], 1),
         ("¿Qué expresa una conclusión?", ["Una idea final", "Un saludo", "Un personaje", "Una fecha"], 0),
         ("¿Cuál es un verbo?", ["Montaña", "Azul", "Correr", "Ayer"], 2),
+        ("Lee: 'Llovía, así que Ana abrió el paraguas'. ¿Por qué lo abrió?", ["Tenía calor", "Estaba lloviendo", "Era de noche", "Iba a dormir"], 1),
+        ("¿Cuál palabra lleva tilde?", ["Lapiz", "Arbol", "Canción", "Jovenes"], 2),
     ],
     3: [
         ("¿En qué continente está Egipto?", ["Asia", "Europa", "África", "Oceanía"], 2),
         ("¿Qué civilización construyó Machu Picchu?", ["Maya", "Inca", "Romana", "Egipcia"], 1),
         ("¿Cuál es la capital de Colombia?", ["Cali", "Medellín", "Cartagena", "Bogotá"], 3),
         ("¿Qué océano está entre América y Europa?", ["Pacífico", "Atlántico", "Índico", "Ártico"], 1),
+        ("¿Cuál es una función de la Constitución?", ["Organizar el Estado", "Predecir el clima", "Medir montañas", "Crear especies"], 0),
+        ("¿Qué línea imaginaria divide la Tierra en hemisferios norte y sur?", ["Meridiano de Greenwich", "Ecuador", "Trópico de Cáncer", "Círculo polar"], 1),
     ],
     4: [
         ("¿Qué órgano bombea la sangre?", ["Pulmón", "Cerebro", "Corazón", "Riñón"], 2),
         ("¿Qué molécula contiene la información genética?", ["ADN", "Agua", "Glucosa", "Oxígeno"], 0),
         ("En una cadena alimentaria, las plantas son...", ["Productores", "Depredadores", "Descomponedores", "Parásitos"], 0),
         ("¿Cuál es el sistema que permite respirar?", ["Digestivo", "Respiratorio", "Nervioso", "Óseo"], 1),
+        ("En una cadena trófica, ¿qué organismo suele ser productor?", ["Un hongo", "Una planta", "Un águila", "Un tigre"], 1),
+        ("Si un alelo dominante A y uno recesivo a se combinan (Aa), ¿qué alelo se expresa en el modelo simple?", ["El recesivo", "El dominante", "Ninguno", "Ambos por igual"], 1),
     ],
 }
+
+# Cada pregunta recibe identidad estable, nivel y explicación sin duplicar el motor.
+for _domain_id, _items in QUESTIONS.items():
+    QUESTIONS[_domain_id] = [
+        (*item, f"realm-{_domain_id + 1}-q-{index + 1:04d}",
+         ("Básica" if index % 3 == 0 else "Intermedia" if index % 3 == 1 else "Avanzada"),
+         f"Respuesta correcta: {item[1][item[2]]}")
+        for index, item in enumerate(_items)
+    ]
 
 POWERS = [
     ("NIEBLA MENTAL", 30, "Reduce las opciones del rival"),
@@ -70,6 +89,13 @@ POWERS = [
 ]
 
 BOT_NAMES = ["Nova", "Atlas", "Luna", "Pixel", "Vector", "Gaia", "Byte"]
+BOT_PERSONALITIES = [
+    ("Novato", 0.48, (0, 2), 0.22),
+    ("Estudiante", 0.62, (0, 4), 0.30),
+    ("Competidor", 0.72, (1, 4), 0.42),
+    ("Experto", 0.82, (0, 4), 0.52),
+    ("Maestro", 0.90, (2, 4), 0.62),
+]
 
 
 def clamp(value, low, high):
@@ -82,27 +108,71 @@ class Bot:
         self.index = index
         self.score = 0
         self.mana = random.randint(15, 45)
-        self.level = random.randint(1, 4)
+        profile = BOT_PERSONALITIES[index % len(BOT_PERSONALITIES)]
+        self.personality, self.accuracy, self.domain_preference, self.power_chance = profile
         self.answer_timer = random.uniform(2.0, 9.0)
         self.cooldown = random.uniform(4, 10)
         self.shield = False
+        self.eliminated = False
+        self.fog_until = 0.0
+        self.frozen_until = 0.0
+        self.marked_for_theft = False
+        self.theft_attacker = None
 
     def update(self, dt, game):
-        self.answer_timer -= dt
+        if self.eliminated:
+            return
+        now = time.monotonic()
         self.cooldown -= dt
+        if now >= self.frozen_until:
+            self.answer_timer -= dt
         if self.answer_timer <= 0:
-            difficulty = 0.54 + self.level * 0.08
-            if random.random() < difficulty:
+            accuracy = self.accuracy * (0.55 if now < self.fog_until else 1.0)
+            accuracy = clamp(accuracy + (0.08 if game.domain in self.domain_preference else 0), 0.15, 0.97)
+            if random.random() < accuracy:
                 gain = random.randint(60, 105)
+                if self.marked_for_theft:
+                    stolen = min(80, gain)
+                    if self.theft_attacker is not None:
+                        self.theft_attacker.score += stolen
+                    gain -= stolen
+                    self.marked_for_theft = False
+                    self.theft_attacker = None
+                    game.events.append((self.name, "ROBO DE PUNTOS ACTIVADO"))
                 self.score += gain
                 self.mana = clamp(self.mana + random.randint(8, 20), 0, 100)
             else:
                 self.mana = clamp(self.mana + 4, 0, 100)
+                if game.death_sudden:
+                    self.eliminated = True
+                    game.events.append((self.name, "ELIMINADO EN MUERTE SÚBITA"))
             self.answer_timer = random.uniform(3.0, 10.0)
-        if self.cooldown <= 0 and self.mana >= 30 and random.random() < 0.35:
-            self.mana -= random.choice([30, 35, 45, 55])
+        if self.cooldown <= 0 and self.mana >= 30 and random.random() < self.power_chance:
+            leaders = sorted([b for b in game.bots if not b.eliminated and b is not self], key=lambda b: b.score, reverse=True)
+            targets_player = game.score >= max((b.score for b in game.bots if not b.eliminated), default=0)
+            target = None if targets_player else (leaders[0] if leaders else None)
+            attack = random.choice(["NIEBLA MENTAL", "CONGELAMIENTO", "ROBO DE PUNTOS"])
+            cost = {"NIEBLA MENTAL": 30, "CONGELAMIENTO": 45, "ROBO DE PUNTOS": 55}[attack]
+            self.mana -= cost
             self.cooldown = random.uniform(7, 15)
-            game.events.append((self.name, random.choice(["NIEBLA MENTAL", "CONGELAMIENTO", "ROBO DE PUNTOS"])))
+            if targets_player:
+                if game.shield_active:
+                    game.shield_active = False
+                    game.events.append((self.name, "ATAQUE BLOQUEADO POR ESCUDO"))
+                elif attack == "NIEBLA MENTAL":
+                    game.player_fog_until = now + 3.0
+                elif attack == "CONGELAMIENTO":
+                    game.player_frozen_until = now + 2.0
+                else:
+                    game.player_marked_for_theft = True
+                    game.player_theft_attacker = self
+            elif target:
+                if attack == "NIEBLA MENTAL": target.fog_until = now + 3.0
+                elif attack == "CONGELAMIENTO": target.frozen_until = now + 2.0
+                else:
+                    target.marked_for_theft = True
+                    target.theft_attacker = self
+            game.events.append((self.name, attack))
 
 
 class Mathverse:
@@ -146,6 +216,14 @@ class Mathverse:
         self.power_cooldowns = {}
         self.shield_active = False
         self.double_or_nothing = False
+        self.player_fog_until = 0.0
+        self.player_frozen_until = 0.0
+        self.player_marked_for_theft = False
+        self.player_theft_attacker = None
+        self.death_sudden = False
+        self.boss_round = False
+        self.match_duration = 360
+        self.difficulty = "Normal"
         errors = validate_question_bank(QUESTIONS)
         if errors:
             raise ValueError("Banco de preguntas inválido: " + "; ".join(errors))
@@ -168,6 +246,7 @@ class Mathverse:
 
     def new_match(self):
         self.state = "match"
+        self.player_eliminated = False
         self.score = 0
         self.mana = 0
         self.combo = 0
@@ -181,6 +260,12 @@ class Mathverse:
         self.power_cooldowns.clear()
         self.shield_active = False
         self.double_or_nothing = False
+        self.player_fog_until = 0.0
+        self.player_frozen_until = 0.0
+        self.player_marked_for_theft = False
+        self.player_theft_attacker = None
+        self.death_sudden = False
+        self.boss_round = False
         self.bots = [Bot(n, i) for i, n in enumerate(BOT_NAMES[:7])]
         self.next_question()
 
@@ -188,26 +273,54 @@ class Mathverse:
         self.round += 1
         self.domain = random.randrange(5)
         pool = QUESTIONS[self.domain]
-        self.question, self.options, self.correct = random.choice(pool)
-        self.question_started = time.monotonic()
+        selected = random.choice(pool)
+        self.question, self.options, self.correct = selected[:3]
+        self.current_question_id = selected[3]
+        self.question_difficulty = selected[4]
+        self.question_explanation = selected[5]
+        self.question_reveal_at = time.monotonic() + 1.5
+        self.question_started = self.question_reveal_at
         self.answered = False
         self.answer_explanation = ""
         self.question_count += 1
+        self.death_sudden = self.round % 17 == 0
+        self.boss_round = self.round % 15 == 0
         self.question_limit = 3.0 if self.round % 11 == 0 else random.uniform(10.0, 15.0)
         if self.round % 11 == 0:
             self.feedback = "⚡ RONDA RELÁMPAGO — ¡3 segundos!"
+            self.feedback_until = time.monotonic() + 2.0
+        elif self.death_sudden:
+            self.feedback = "☠ MUERTE SÚBITA — ¡un error te elimina!"
+            self.feedback_until = time.monotonic() + 2.0
+        elif self.boss_round:
+            self.feedback = "👑 JEFE DEL DOMINIO — ¡bonificación x3!"
             self.feedback_until = time.monotonic() + 2.0
 
     def answer(self, index):
         if self.state != "match" or not self.question or self.answered:
             return False
-        elapsed = time.monotonic() - self.question_started
+        now = time.monotonic()
+        if now < self.question_reveal_at:
+            return False
+        if now < self.player_frozen_until:
+            self.feedback = "❄ Estás congelado: no puedes responder todavía"
+            self.feedback_until = now + 1.0
+            return False
+        elapsed = now - self.question_started
         timed_out = elapsed > self.question_limit or index < 0 or index >= len(self.options)
         correct = not timed_out and index == self.correct
         self.answered = True
         if correct:
-            multiplier = (2 if self.round % 11 == 0 else 1) * (2 if self.double_or_nothing else 1)
+            multiplier = (2 if self.round % 11 == 0 else 1) * (3 if self.boss_round else 1) * (2 if self.double_or_nothing else 1)
             gain = score_answer(True, elapsed, self.question_limit, self.combo, multiplier)
+            if self.player_marked_for_theft:
+                stolen = min(80, gain)
+                if self.player_theft_attacker is not None and not self.player_theft_attacker.eliminated:
+                    self.player_theft_attacker.score += stolen
+                gain -= stolen
+                self.player_marked_for_theft = False
+                self.player_theft_attacker = None
+                self.events.append(("RIVAL", f"ROBO DE PUNTOS: {stolen}"))
             speed = max(0.2, 1.0 - elapsed / self.question_limit)
             self.score += gain
             self.mana = clamp(self.mana + 16 + int(speed * 12), 0, 100)
@@ -220,8 +333,14 @@ class Mathverse:
                 self.score = max(0, self.score - min(50, self.score))
             self.mana = clamp(self.mana + 3, 0, 100)
             self.feedback = "⏱ Tiempo agotado" if timed_out else "✗ Respuesta incorrecta"
+            if self.death_sudden:
+                self.player_eliminated = True
+                self.feedback = "☠ ¡Eliminado en Muerte Súbita!"
+                self.feedback_until = time.monotonic() + 1.5
+                self.finish()
+                return True
         self.double_or_nothing = False
-        self.answer_explanation = f"Respuesta correcta: {self.options[self.correct]}"
+        self.answer_explanation = self.question_explanation
         self.feedback_until = time.monotonic() + 1.6
         return True
 
@@ -239,7 +358,8 @@ class Mathverse:
             self.feedback = "⚡ No tienes suficiente maná"
             self.feedback_until = now + 1.2
             return False
-        target = max(self.bots, key=lambda bot: bot.score, default=None)
+        eligible = [bot for bot in self.bots if not bot.eliminated]
+        target = max(eligible, key=lambda bot: bot.score, default=None)
         if power_index in (3, 4) and ((power_index == 3 and self.shield_active) or (power_index == 4 and self.double_or_nothing)):
             self.feedback = "Ese poder ya está activo"
             self.feedback_until = now + 1.2
@@ -301,10 +421,13 @@ class Mathverse:
             pygame.draw.circle(self.screen, (28, 44, 76), (x, y), 2 + i % 3)
         self.draw_text("MATHVERSE", (WIDTH // 2, 130), 88, (245, 215, 90), True)
         self.draw_text("EL DESAFÍO DE LOS 5 REINOS", (WIDTH // 2, 190), 38, (210, 225, 255), True)
-        self.draw_text("Competencia educativa • 5–7 minutos • 8 jugadores", (WIDTH // 2, 232), 24, (150, 170, 205), True)
-        self.button(pygame.Rect(WIDTH // 2 - 170, 310, 340, 62), "⚔  JUGAR OFFLINE", True, 30)
-        self.button(pygame.Rect(WIDTH // 2 - 170, 390, 340, 62), "✦  PERSONALIZAR AVATAR", True, 26)
-        self.button(pygame.Rect(WIDTH // 2 - 170, 470, 340, 62), "◎  SALIR", True, 26)
+        self.draw_text("Competencia educativa • bots adaptativos • 5 reinos", (WIDTH // 2, 232), 24, (150, 170, 205), True)
+        for i, minutes in enumerate((5, 6, 7)):
+            label = f"{minutes} MIN" + (" ✓" if self.match_duration == minutes * 60 else "")
+            self.button(pygame.Rect(WIDTH // 2 - 230 + i * 155, 260, 140, 42), label, True, 20)
+        self.button(pygame.Rect(WIDTH // 2 - 170, 325, 340, 62), "⚔  JUGAR OFFLINE", True, 30)
+        self.button(pygame.Rect(WIDTH // 2 - 170, 405, 340, 62), "✦  PERSONALIZAR AVATAR", True, 26)
+        self.button(pygame.Rect(WIDTH // 2 - 170, 485, 340, 62), "◎  SALIR", True, 26)
         self.draw_text(f"Nivel {1 + self.xp // 250}   •   🧠 {self.brain_coins} Brain Coins", (WIDTH // 2, 590), 24, (245, 245, 245), True)
 
     def draw_avatar_menu(self):
@@ -339,7 +462,7 @@ class Mathverse:
             y = center[1] + math.sin(a) * (radius + 65)
             self.draw_text(f"{icon} {name}", (x, y), 19, (210, 220, 245), True)
         # Players around the pentagon.
-        players = [(self.player_name, self.score, True)] + [(b.name, b.score, False) for b in self.bots]
+        players = [(self.player_name, self.score, True)] + [(b.name, b.score, False) for b in self.bots if not b.eliminated]
         for i, (name, score, human) in enumerate(players):
             a = -math.pi / 2 + i * 2 * math.pi / len(players)
             px = center[0] + math.cos(a) * (radius - 45)
@@ -350,8 +473,9 @@ class Mathverse:
             self.draw_text(name, (px, py + 34), 18, (235, 240, 255), True)
             self.draw_text(str(score), (px, py), 20, (15, 20, 30), True)
         # Header
-        remaining = max(0, MATCH_SECONDS - (time.monotonic() - self.match_start))
+        remaining = max(0, self.match_duration - (time.monotonic() - self.match_start))
         self.draw_text(f"MATHVERSE   {int(remaining)//60:02d}:{int(remaining)%60:02d}", (28, 20), 30, (245, 215, 90))
+        self.draw_text(f"Pregunta {self.question_count} • ID {self.current_question_id}", (28, 82), 17, (155, 175, 210))
         self.draw_text(f"PUNTOS {self.score:,}   COMBO x{self.combo}   NIVEL {1 + self.xp // 250}", (28, 55), 21)
         pygame.draw.rect(self.screen, (25, 30, 50), (w - 285, 25, 230, 18), border_radius=9)
         pygame.draw.rect(self.screen, (110, 190, 255), (w - 285, 25, int(230 * self.mana / 100), 18), border_radius=9)
@@ -360,15 +484,29 @@ class Mathverse:
         panel = pygame.Rect(120, h - 285, w - 240, 120)
         pygame.draw.rect(self.screen, (20, 28, 49), panel, border_radius=18)
         pygame.draw.rect(self.screen, (65, 82, 125), panel, 2, border_radius=18)
-        self.draw_text(f"{DOMAINS[self.domain][2]}  {DOMAINS[self.domain][1]}", (panel.x + 18, panel.y + 13), 20, (245, 215, 90))
-        self.draw_text(self.question, (w // 2, panel.y + 65), 30, (245, 248, 255), True)
+        self.draw_text(f"{DOMAINS[self.domain][2]}  {DOMAINS[self.domain][1]} • {self.question_difficulty}", (panel.x + 18, panel.y + 13), 20, (245, 215, 90))
+        preparing = time.monotonic() < self.question_reveal_at
+        if preparing:
+            self.draw_text("PREPÁRATE", (w // 2, panel.y + 62), 38, (120, 210, 255), True)
+            self.draw_text("Activa DOBLE O NADA antes de revelar la pregunta", (w // 2, panel.y + 91), 20, (245, 215, 90), True)
+        else:
+            self.draw_text(self.question, (w // 2, panel.y + 65), 30, (245, 248, 255), True)
         # Answers
         answer_w = min(300, (w - 180) // 4)
         gap = 15
         total = answer_w * 4 + gap * 3
         start = (w - total) // 2
-        for i, option in enumerate(self.options):
-            self.button(pygame.Rect(start + i * (answer_w + gap), h - 150, answer_w, 58), f"{i+1}. {option}", True, 21)
+        if not preparing:
+            for i, option in enumerate(self.options):
+                self.button(pygame.Rect(start + i * (answer_w + gap), h - 150, answer_w, 58), f"{i+1}. {option}", True, 21)
+        else:
+            for i in range(4):
+                self.button(pygame.Rect(start + i * (answer_w + gap), h - 150, answer_w, 58), "?", False, 24)
+        if time.monotonic() < self.player_fog_until:
+            fog = pygame.Surface((w, 72), pygame.SRCALPHA)
+            fog.fill((185, 195, 215, 175))
+            self.screen.blit(fog, (0, h - 155))
+            self.draw_text("NIEBLA MENTAL • ¡mantén la calma!", (w // 2, h - 120), 21, (35, 42, 65), True)
         # Powers
         for i, (name, cost, _) in enumerate(POWERS):
             self.button(pygame.Rect(25 + i * 165, h - 78, 155, 48), f"{name} • {cost}", self.mana >= cost, 17)
@@ -380,6 +518,8 @@ class Mathverse:
     def draw_result(self):
         self.screen.fill((9, 12, 25))
         self.draw_text("FIN DE LA BATALLA", (WIDTH // 2, 90), 58, (245, 215, 90), True)
+        if getattr(self, "player_eliminated", False):
+            self.draw_text("Has sido eliminado en Muerte Súbita", (WIDTH // 2, 130), 25, (255, 100, 110), True)
         ranking = [(self.player_name, self.score)] + [(b.name, b.score) for b in self.bots]
         ranking.sort(key=lambda x: x[1], reverse=True)
         for i, (name, score) in enumerate(ranking):
@@ -393,9 +533,13 @@ class Mathverse:
         x, y = pos
         w, h = self.screen.get_size()
         if self.state == "menu":
-            if pygame.Rect(w//2-170, 310, 340, 62).collidepoint(pos): self.new_match()
-            elif pygame.Rect(w//2-170, 390, 340, 62).collidepoint(pos): self.state = "avatar"
-            elif pygame.Rect(w//2-170, 470, 340, 62).collidepoint(pos): self.running = False
+            for i, minutes in enumerate((5, 6, 7)):
+                if pygame.Rect(w//2-230+i*155, 260, 140, 42).collidepoint(pos):
+                    self.match_duration = minutes * 60
+                    return
+            if pygame.Rect(w//2-170, 325, 340, 62).collidepoint(pos): self.new_match()
+            elif pygame.Rect(w//2-170, 405, 340, 62).collidepoint(pos): self.state = "avatar"
+            elif pygame.Rect(w//2-170, 485, 340, 62).collidepoint(pos): self.running = False
         elif self.state == "avatar":
             if pygame.Rect(30,30,130,48).collidepoint(pos): self.state = "menu"
             for i, key in enumerate(["aura", "electricidad", "fuego"]):
@@ -403,6 +547,8 @@ class Mathverse:
                     self.cosmetic = key
                     self.save_game()
         elif self.state == "match":
+            if time.monotonic() < self.player_frozen_until or time.monotonic() < self.question_reveal_at:
+                return
             answer_w = min(300, (w - 180) // 4); gap = 15; total = answer_w*4+gap*3; start=(w-total)//2
             for i in range(4):
                 if pygame.Rect(start+i*(answer_w+gap), h-150, answer_w, 58).collidepoint(pos): self.answer(i); return
@@ -414,11 +560,13 @@ class Mathverse:
     def update(self, dt):
         if self.state != "match": return
         now = time.monotonic()
-        if now - self.match_start >= MATCH_SECONDS:
+        if now - self.match_start >= self.match_duration:
             self.finish()
             return
         if self.answered:
             if now >= self.feedback_until: self.next_question()
+            return
+        if now < self.question_reveal_at:
             return
         for bot in self.bots: bot.update(dt, self)
         if now - self.question_started >= self.question_limit: self.answer(-1)

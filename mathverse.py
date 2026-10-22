@@ -300,6 +300,8 @@ class Mathverse:
         if self.state != "match" or not self.question or self.answered:
             return False
         now = time.monotonic()
+        if now < self.question_reveal_at:
+            return False
         if now < self.player_frozen_until:
             self.feedback = "❄ Estás congelado: no puedes responder todavía"
             self.feedback_until = now + 1.0

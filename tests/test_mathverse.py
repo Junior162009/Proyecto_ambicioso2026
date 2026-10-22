@@ -59,3 +59,21 @@ def test_bot_personality_and_timing_values_are_bounded():
     bot = Bot("Prueba", 0)
     assert 0 <= bot.mana <= 100
     assert bot.answer_timer > 0
+
+
+
+def test_question_records_have_unique_ids_levels_and_explanations():
+    records = [question for realm in QUESTIONS.values() for question in realm]
+    ids = [question[3] for question in records]
+    assert len(records) >= 30
+    assert len(ids) == len(set(ids))
+    assert all(question[4] in {"Básica", "Intermedia", "Avanzada"} for question in records)
+    assert all(question[5].startswith("Respuesta correcta: ") for question in records)
+    assert all(len(QUESTIONS[realm]) >= 6 for realm in range(5))
+
+
+def test_bot_personalities_have_different_skill_levels():
+    bots = [Bot(f"Bot {i}", i) for i in range(5)]
+    assert [bot.personality for bot in bots] == ["Novato", "Estudiante", "Competidor", "Experto", "Maestro"]
+    assert [bot.accuracy for bot in bots] == sorted(bot.accuracy for bot in bots)
+    assert len({bot.power_chance for bot in bots}) == 5

@@ -5,6 +5,8 @@ Controles: ratón para elegir respuestas/poderes, ESC para salir.
 """
 from __future__ import annotations
 
+import asyncio
+import sys
 import json
 import math
 import random
@@ -179,7 +181,7 @@ class Mathverse:
     def __init__(self):
         pygame.init()
         pygame.display.set_caption("Mathverse — El Desafío de los 5 Reinos")
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT)) if sys.platform == "emscripten" else pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
         self.clock = pygame.time.Clock()
         self.running = True
         self.state = "menu"
@@ -577,6 +579,28 @@ class Mathverse:
         elif self.state == "match": self.draw_arena()
         else: self.draw_result()
         pygame.display.flip()
+
+    async def run_web(self):
+        """Bucle cooperativo requerido por Pygbag/WebAssembly."""
+        global WIDTH, HEIGHT
+        while self.running:
+            dt = self.clock.tick(FPS) / 1000.0
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+                elif event.type == pygame.VIDEORESIZE:
+                    WIDTH, HEIGHT = max(640, event.w), max(480, event.h)
+                    self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    self.running = False
+                elif event.type == pygame.KEYDOWN and self.state == "match" and pygame.K_1 <= event.key <= pygame.K_4:
+                    self.answer(event.key - pygame.K_1)
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    self.click(event.pos)
+            self.update(dt)
+            self.draw()
+            await asyncio.sleep(0)
+        self.save_game()
 
     def run(self):
         global WIDTH, HEIGHT

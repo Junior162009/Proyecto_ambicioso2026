@@ -54,3 +54,15 @@ Las pruebas cubren el banco de preguntas, cálculo de puntos, reglas de poderes,
 - `mathverse_core.py`: validación de preguntas, puntuación, reglas de poderes y persistencia segura.
 - `tests/test_mathverse.py`: pruebas automatizadas.
 - `backups/`: respaldo del punto de entrada de MATEMIA previo a la migración.
+
+## Versión web de prueba
+
+Mathverse usa Pygbag para empaquetar Pygame en WebAssembly. El flujo `.github/workflows/pygbag-pages.yml` construye una versión de navegador en cada cambio a `main` o `mathverse-finalizacion`.
+
+- En la pestaña **Actions**, abre **Mathverse Web (Pygbag)** y descarga el artefacto `mathverse-web-build` para revisar el paquete generado.
+- La publicación automática en GitHub Pages está configurada solo para `main`, para no publicar cambios de una rama de trabajo antes de integrarlos.
+- El bucle del navegador es asíncrono y cede el control con `await asyncio.sleep(0)`, como requiere Pygbag.
+- El modo de escritorio sigue usando `python main.py`.
+- Esta configuración no convierte el juego en multijugador en línea. El guardado persistente del navegador y la compatibilidad visual todavía deben comprobarse en un navegador real.
+
+Para probar localmente: instala Pygbag (`python -m pip install pygbag pygame-ce`) y ejecuta `python -m pygbag .`; luego abre la dirección local que muestre el servidor de Pygbag.

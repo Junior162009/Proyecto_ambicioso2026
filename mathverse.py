@@ -278,7 +278,8 @@ class Mathverse:
         self.current_question_id = selected[3]
         self.question_difficulty = selected[4]
         self.question_explanation = selected[5]
-        self.question_started = time.monotonic()
+        self.question_reveal_at = time.monotonic() + 1.5
+        self.question_started = self.question_reveal_at
         self.answered = False
         self.answer_explanation = ""
         self.question_count += 1
@@ -482,14 +483,23 @@ class Mathverse:
         pygame.draw.rect(self.screen, (20, 28, 49), panel, border_radius=18)
         pygame.draw.rect(self.screen, (65, 82, 125), panel, 2, border_radius=18)
         self.draw_text(f"{DOMAINS[self.domain][2]}  {DOMAINS[self.domain][1]} • {self.question_difficulty}", (panel.x + 18, panel.y + 13), 20, (245, 215, 90))
-        self.draw_text(self.question, (w // 2, panel.y + 65), 30, (245, 248, 255), True)
+        preparing = time.monotonic() < self.question_reveal_at
+        if preparing:
+            self.draw_text("PREPÁRATE", (w // 2, panel.y + 62), 38, (120, 210, 255), True)
+            self.draw_text("Activa DOBLE O NADA antes de revelar la pregunta", (w // 2, panel.y + 91), 20, (245, 215, 90), True)
+        else:
+            self.draw_text(self.question, (w // 2, panel.y + 65), 30, (245, 248, 255), True)
         # Answers
         answer_w = min(300, (w - 180) // 4)
         gap = 15
         total = answer_w * 4 + gap * 3
         start = (w - total) // 2
-        for i, option in enumerate(self.options):
-            self.button(pygame.Rect(start + i * (answer_w + gap), h - 150, answer_w, 58), f"{i+1}. {option}", True, 21)
+        if not preparing:
+            for i, option in enumerate(self.options):
+                self.button(pygame.Rect(start + i * (answer_w + gap), h - 150, answer_w, 58), f"{i+1}. {option}", True, 21)
+        else:
+            for i in range(4):
+                self.button(pygame.Rect(start + i * (answer_w + gap), h - 150, answer_w, 58), "?", False, 24)
         if time.monotonic() < self.player_fog_until:
             fog = pygame.Surface((w, 72), pygame.SRCALPHA)
             fog.fill((185, 195, 215, 175))
@@ -535,7 +545,7 @@ class Mathverse:
                     self.cosmetic = key
                     self.save_game()
         elif self.state == "match":
-            if time.monotonic() < self.player_frozen_until:
+            if time.monotonic() < self.player_frozen_until or time.monotonic() < self.question_reveal_at:
                 return
             answer_w = min(300, (w - 180) // 4); gap = 15; total = answer_w*4+gap*3; start=(w-total)//2
             for i in range(4):
@@ -553,6 +563,8 @@ class Mathverse:
             return
         if self.answered:
             if now >= self.feedback_until: self.next_question()
+            return
+        if now < self.question_reveal_at:
             return
         for bot in self.bots: bot.update(dt, self)
         if now - self.question_started >= self.question_limit: self.answer(-1)

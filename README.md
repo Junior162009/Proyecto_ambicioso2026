@@ -1,15 +1,14 @@
-# Proyecto Ambicioso 2026 — Matemia
+# Mathverse — El Desafío de los 5 Reinos
 
-Juego educativo de aventura desarrollado en Python y Pygame. El repositorio conserva los módulos en español y los nombres de compatibilidad en inglés para evitar errores de importación en las partes antiguas del proyecto.
+Juego educativo competitivo en Python y Pygame. El punto de entrada oficial es Mathverse; el código anterior de MATEMIA queda respaldado en `backups/matemia_main_2026-10-21.py`.
 
 ## Requisitos
 
 - Python 3.10 o posterior.
-- Pygame 2.6 o posterior.
+- Pygame 2.6.1 o posterior.
+- pytest para las pruebas automatizadas.
 
-## Instalación en Linux (incluido antiX)
-
-Desde la carpeta del repositorio:
+## Instalación y ejecución (Linux/antiX)
 
 ```bash
 python3 -m venv env
@@ -19,45 +18,35 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-Si el entorno virtual ya existe, basta con activarlo e instalar las dependencias. No es necesario instalar Android Studio.
+También se puede ejecutar con `python mathverse.py`. Ambos comandos llaman a la misma implementación.
 
-## Controles de la aventura
+## Controles
 
-- **WASD** o flechas: mover al personaje.
-- **Clic izquierdo**: disparar hacia el cursor.
-- **E**: interactuar con cofres, habitantes y salidas.
-- **T**: abrir la tienda; usa las teclas **1–7** para comprar.
-- **Q**: abrir misiones; usa los números para aceptar una misión.
-- **I**: abrir el inventario; usa los números para consumir objetos.
-- **M**: consultar el mapa mundial.
-- **R**: usar un cargador extra para recuperar 10 balas; después de perder, también reinicia la aventura.
-- **Enter**: confirmar la respuesta matemática del cofre.
-- **Retroceso**: borrar la respuesta.
-- **Esc**: cerrar el panel abierto o salir del juego.
+- Ratón o teclas 1–4: seleccionar respuestas.
+- Clic en los botones inferiores: usar poderes cuando el maná alcance el coste.
+- ESC: salir.
 
-El juego busca recursos en la carpeta `assets/`. Si una imagen no está disponible, usa un recurso gráfico de respaldo para que la ausencia del archivo no cierre el juego.
-
-## Pruebas automáticas
-
-Instala también pytest y ejecuta:
+## Pruebas
 
 ```bash
 python -m pip install pytest
-python -m pytest -q
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m pytest -q
 ```
 
-Las pruebas se ejecutan en modo gráfico ficticio (SDL dummy) y comprueban importaciones, configuración, operaciones matemáticas, rutas del mundo, inventario/tienda, misiones, jefe final y arranque de la aventura. GitHub Actions ejecuta estas pruebas en cada push a `main` y en cada pull request.
+Las pruebas cubren el banco de preguntas, cálculo de puntos, reglas de poderes, validación y escritura atómica del progreso y prevención de recompensas duplicadas. Ejecuta el juego en una sesión gráfica para comprobar visualmente la ventana y los controles.
+
+## Estado funcional conocido
+
+- Modo offline con bots: implementado en el cliente Pygame.
+- Cinco reinos: incluye un banco inicial de preguntas, no una base de miles de preguntas.
+- Perfil local: guardado JSON con validación y escritura atómica.
+- Online: no se anuncia como funcional. Este repositorio no contiene aún un servidor autoritativo, emparejamiento ni sincronización WebSocket verificados. Para habilitarlo hace falta desplegar y probar esa infraestructura.
+- Navegador/Pygbag: no declarado compatible ni probado en esta entrega.
 
 ## Organización
 
-- `main.py`: aventura principal con exploración, cofres, combate y áreas.
-- `mundo.py`, `mapa.py`: generación del mundo, rutas y colisiones.
-- `jugador.py`, `enemigo.py`, `boss.py`, `bala.py`: entidades y combate.
-- `cofre.py`, `misiones.py`, `progresion.py`, `tienda.py`: sistemas educativos y de progresión.
-- `ui.py`, `sistema_respuestas.py`, `menu.py`, `areas.py`: componentes de interfaz.
-- `game.py`: modo de combate por niveles mantenido por compatibilidad.
-- `config.py`, `player.py`, `enemy.py`, `combat.py`, `levels.py`: adaptadores para nombres usados por el código antiguo.
-
-## Reportar errores
-
-Si el juego muestra un traceback, copia el error completo junto con el comando que ejecutaste. No borres cambios locales ni uses `git reset --hard` para resolver conflictos sin revisar primero los archivos.
+- `main.py`: lanzador oficial.
+- `mathverse.py`: ventana, menús, partida y renderizado Pygame.
+- `mathverse_core.py`: validación de preguntas, puntuación, reglas de poderes y persistencia segura.
+- `tests/test_mathverse.py`: pruebas automatizadas.
+- `backups/`: respaldo del punto de entrada de MATEMIA previo a la migración.

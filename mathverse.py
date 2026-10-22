@@ -67,7 +67,7 @@ QUESTIONS = {
         ("En una cadena alimentaria, las plantas son...", ["Productores", "Depredadores", "Descomponedores", "Parásitos"], 0),
         ("¿Cuál es el sistema que permite respirar?", ["Digestivo", "Respiratorio", "Nervioso", "Óseo"], 1),
         ("En una cadena trófica, ¿qué organismo suele ser productor?", ["Un hongo", "Una planta", "Un águila", "Un tigre"], 1),
-        ("Si un alelo dominante A y uno recesivo a se combinan (Aa), ¿qué alelo se expresa en el modelo simple?", ["Solo a", "Solo A", "Ninguno", "Ambos siempre por igual"], 1),
+        ("Si un alelo dominante A y uno recesivo a se combinan (Aa), ¿qué alelo se expresa en el modelo simple?", ["El recesivo", "El dominante", "Ninguno", "Ambos por igual"], 1),
     ],
 }
 

@@ -1,68 +1,65 @@
-# Mathverse — El Desafío de los 5 Reinos
+# MATEMIA — Mundo Libre Matemático
 
-Juego educativo competitivo en Python y Pygame. El punto de entrada oficial es Mathverse; el código anterior de MATEMIA queda respaldado en `backups/matemia_main_2026-10-21.py`.
+Juego educativo de aventura creado con Python y Pygame. Explora áreas, combate enemigos, abre cofres matemáticos, conversa con NPC, completa misiones y mejora tu inventario.
 
-## Requisitos
+## Ejecutar en escritorio (Linux/antiX)
 
-- Python 3.10 o posterior.
-- Pygame 2.6.1 o posterior.
-- pytest para las pruebas automatizadas.
-
-## Instalación y ejecución (Linux/antiX)
+Requiere Python 3.10 o posterior y Pygame.
 
 ```bash
 python3 -m venv env
 source env/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install pygame-ce pytest pygbag
 python main.py
 ```
 
-También se puede ejecutar con `python mathverse.py`. Ambos comandos llaman a la misma implementación.
+Si ya tienes un entorno virtual preparado, actívalo y ejecuta `python main.py`.
+
+## Jugar desde el navegador
+
+La versión web se construye con Pygbag a partir del juego original, usando una copia de preparación para navegador. El archivo `main.py` de escritorio se conserva sin convertir su bucle principal.
+
+1. Abre la pestaña **Actions** del repositorio y entra en **MATEMIA Web (Pygbag)**.
+2. Espera a que terminen los trabajos **build** y **deploy**.
+3. Cuando finalice correctamente, abre: https://junior162009.github.io/Proyecto_ambicioso2026/
+
+La primera carga puede tardar porque el navegador descarga Pygame y los recursos gráficos. Si la acción falla, abre su registro y revisa el paso de compilación.
+
+Para probar localmente el paquete web:
+
+```bash
+python web/prepare_pygbag.py
+cd .pygbag_src
+python -m pygbag .
+```
 
 ## Controles
 
-- Ratón o teclas 1–4: seleccionar respuestas.
-- En el menú, elige partidas de 5, 6 o 7 minutos.
-- Clic en los botones inferiores: usar poderes cuando el maná alcance el coste.
-- ESC: salir.
+- **WASD o flechas:** mover al personaje.
+- **Clic en el mundo:** disparar.
+- **E:** interactuar / abrir cofres.
+- **T:** tienda.
+- **I:** inventario.
+- **Q:** misiones.
+- **M:** mapa.
+- **F11:** alternar pantalla en escritorio.
+- **+ / -:** ajustar zoom.
+- **ESC:** cerrar un panel o salir.
 
 ## Pruebas
 
 ```bash
-python -m pip install pytest
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m pytest -q
 ```
 
-Las pruebas cubren el banco de preguntas, cálculo de puntos, reglas de poderes, validación y escritura atómica del progreso y prevención de recompensas duplicadas. Ejecuta el juego en una sesión gráfica para comprobar visualmente la ventana y los controles.
+## Archivos principales
 
-## Estado funcional conocido
+- `main.py`: juego original MATEMIA para escritorio.
+- `web/prepare_pygbag.py`: crea una copia compatible con el bucle asíncrono del navegador.
+- `assets/`: gráficos del jugador, terreno, cofres y UI.
+- `backups/matemia_main_2026-10-21.py`: copia de respaldo del punto de entrada original.
 
-- Modo offline con bots: implementado en el cliente Pygame.
-- Cinco reinos: banco inicial de 30 preguntas, con identificador estable, dificultad y explicación; se puede ampliar desde `QUESTIONS`.
-- Eventos offline: rondas relámpago de 3 segundos, muerte súbita y bonificación de Jefe del Dominio.
-- Bots: cinco personalidades con precisión, preferencias y frecuencia de poderes diferentes.
-- Poderes: niebla reduce temporalmente la precisión del bot; congelamiento retrasa su respuesta; robo transfiere puntos de su próxima respuesta; el escudo bloquea un ataque; doble o nada apuesta la próxima ganancia.
-- Perfil local: guardado JSON con validación y escritura atómica.
-- Online: no se anuncia como funcional. Este repositorio no contiene aún un servidor autoritativo, emparejamiento ni sincronización WebSocket verificados. Para habilitarlo hace falta desplegar y probar esa infraestructura.
-- Navegador/Pygbag: no declarado compatible ni probado en esta entrega.
+## Alcance
 
-## Organización
-
-- `main.py`: lanzador oficial.
-- `mathverse.py`: ventana, menús, partida y renderizado Pygame.
-- `mathverse_core.py`: validación de preguntas, puntuación, reglas de poderes y persistencia segura.
-- `tests/test_mathverse.py`: pruebas automatizadas.
-- `backups/`: respaldo del punto de entrada de MATEMIA previo a la migración.
-
-## Versión web de prueba
-
-Mathverse usa Pygbag para empaquetar Pygame en WebAssembly. El flujo `.github/workflows/pygbag-pages.yml` construye una versión de navegador en cada cambio a `main` o `mathverse-finalizacion`.
-
-- En la pestaña **Actions**, abre **Mathverse Web (Pygbag)** y descarga el artefacto `mathverse-web-build` para revisar el paquete generado.
-- La publicación automática en GitHub Pages está configurada solo para `main`, para no publicar cambios de una rama de trabajo antes de integrarlos.
-- El bucle del navegador es asíncrono y cede el control con `await asyncio.sleep(0)`, como requiere Pygbag.
-- El modo de escritorio sigue usando `python main.py`.
-- Esta configuración no convierte el juego en multijugador en línea. El guardado persistente del navegador y la compatibilidad visual todavía deben comprobarse en un navegador real.
-
-Para probar localmente: instala Pygbag (`python -m pip install pygbag pygame-ce`) y ejecuta `python -m pygbag .`; luego abre la dirección local que muestre el servidor de Pygbag.
+La versión de navegador permite jugar la aventura localmente dentro del navegador; no representa un modo multijugador en línea. La compatibilidad final debe confirmarse con la compilación de GitHub Actions y una prueba real en el navegador.

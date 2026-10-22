@@ -2,3 +2,14 @@ env/
 .pygbag_src/
 build/
 dist/
+
+# Local profiles, backups generated at runtime, and Python tooling
+mathverse_save.json
+mathverse_save.json.*
+*.py[cod]
+__pycache__/
+.pytest_cache/
+.venv/
+.env
+.env.*
+!.env.example

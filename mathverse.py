@@ -34,32 +34,51 @@ QUESTIONS = {
         ("Completa: 2, 4, 8, 16, ...", ["20", "24", "30", "32"], 3),
         ("¿Cuál es el 25% de 80?", ["10", "15", "20", "25"], 2),
         ("Si x + 7 = 19, ¿cuánto vale x?", ["10", "11", "12", "13"], 2),
+        ("¿Cuánto es 3/4 de 20?", ["10", "12", "15", "16"], 2),
+        ("Si 5 cuadernos cuestan $15, ¿cuánto cuestan 2?", ["$3", "$5", "$6", "$8"], 2),
     ],
     1: [
         ("What does 'brave' mean?", ["Valiente", "Rápido", "Triste", "Pequeño"], 0),
         ("Choose the correct sentence.", ["She are happy.", "She is happy.", "She am happy.", "She be happy."], 1),
         ("Opposite of 'early'", ["Fast", "Late", "Near", "Easy"], 1),
         ("'Book' as a verb means...", ["Reservar", "Cocinar", "Cerrar", "Pintar"], 0),
+        ("What does 'piece of cake' mean?", ["Muy difícil", "Muy fácil", "Muy caro", "Muy tarde"], 1),
+        ("Complete: They ___ football every Sunday.", ["plays", "playing", "play", "played"], 2),
     ],
     2: [
         ("¿Cuál palabra está escrita correctamente?", ["Exepción", "Excepción", "Ecepción", "Exsepción"], 1),
         ("Sinónimo de 'rápido'", ["Lento", "Veloz", "Pesado", "Lejano"], 1),
         ("¿Qué expresa una conclusión?", ["Una idea final", "Un saludo", "Un personaje", "Una fecha"], 0),
         ("¿Cuál es un verbo?", ["Montaña", "Azul", "Correr", "Ayer"], 2),
+        ("Lee: 'Llovía, así que Ana abrió el paraguas'. ¿Por qué lo abrió?", ["Tenía calor", "Estaba lloviendo", "Era de noche", "Iba a dormir"], 1),
+        ("¿Cuál palabra lleva tilde?", ["Lapiz", "Arbol", "Canción", "Jovenes"], 2),
     ],
     3: [
         ("¿En qué continente está Egipto?", ["Asia", "Europa", "África", "Oceanía"], 2),
         ("¿Qué civilización construyó Machu Picchu?", ["Maya", "Inca", "Romana", "Egipcia"], 1),
         ("¿Cuál es la capital de Colombia?", ["Cali", "Medellín", "Cartagena", "Bogotá"], 3),
         ("¿Qué océano está entre América y Europa?", ["Pacífico", "Atlántico", "Índico", "Ártico"], 1),
+        ("¿Cuál es una función de la Constitución?", ["Organizar el Estado", "Predecir el clima", "Medir montañas", "Crear especies"], 0),
+        ("¿Qué línea imaginaria divide la Tierra en hemisferios norte y sur?", ["Meridiano de Greenwich", "Ecuador", "Trópico de Cáncer", "Círculo polar"], 1),
     ],
     4: [
         ("¿Qué órgano bombea la sangre?", ["Pulmón", "Cerebro", "Corazón", "Riñón"], 2),
         ("¿Qué molécula contiene la información genética?", ["ADN", "Agua", "Glucosa", "Oxígeno"], 0),
         ("En una cadena alimentaria, las plantas son...", ["Productores", "Depredadores", "Descomponedores", "Parásitos"], 0),
         ("¿Cuál es el sistema que permite respirar?", ["Digestivo", "Respiratorio", "Nervioso", "Óseo"], 1),
+        ("En una cadena trófica, ¿qué organismo suele ser productor?", ["Un hongo", "Una planta", "Un águila", "Un tigre"], 1),
+        ("Si un alelo dominante A y uno recesivo a se combinan (Aa), ¿qué alelo se expresa en el modelo simple?", ["Solo a", "Solo A", "Ninguno", "Ambos siempre por igual"], 1),
     ],
 }
+
+# Cada pregunta recibe identidad estable, nivel y explicación sin duplicar el motor.
+for _domain_id, _items in QUESTIONS.items():
+    QUESTIONS[_domain_id] = [
+        (*item, f"realm-{_domain_id + 1}-q-{index + 1:04d}",
+         ("Básica" if index % 3 == 0 else "Intermedia" if index % 3 == 1 else "Avanzada"),
+         f"Respuesta correcta: {item[1][item[2]]}")
+        for index, item in enumerate(_items)
+    ]
 
 POWERS = [
     ("NIEBLA MENTAL", 30, "Reduce las opciones del rival"),
@@ -254,7 +273,11 @@ class Mathverse:
         self.round += 1
         self.domain = random.randrange(5)
         pool = QUESTIONS[self.domain]
-        self.question, self.options, self.correct = random.choice(pool)
+        selected = random.choice(pool)
+        self.question, self.options, self.correct = selected[:3]
+        self.current_question_id = selected[3]
+        self.question_difficulty = selected[4]
+        self.question_explanation = selected[5]
         self.question_started = time.monotonic()
         self.answered = False
         self.answer_explanation = ""
@@ -314,7 +337,7 @@ class Mathverse:
                 self.finish()
                 return True
         self.double_or_nothing = False
-        self.answer_explanation = f"Respuesta correcta: {self.options[self.correct]}"
+        self.answer_explanation = self.question_explanation
         self.feedback_until = time.monotonic() + 1.6
         return True
 
@@ -395,10 +418,13 @@ class Mathverse:
             pygame.draw.circle(self.screen, (28, 44, 76), (x, y), 2 + i % 3)
         self.draw_text("MATHVERSE", (WIDTH // 2, 130), 88, (245, 215, 90), True)
         self.draw_text("EL DESAFÍO DE LOS 5 REINOS", (WIDTH // 2, 190), 38, (210, 225, 255), True)
-        self.draw_text("Competencia educativa • 5–7 minutos • 8 jugadores", (WIDTH // 2, 232), 24, (150, 170, 205), True)
-        self.button(pygame.Rect(WIDTH // 2 - 170, 310, 340, 62), "⚔  JUGAR OFFLINE", True, 30)
-        self.button(pygame.Rect(WIDTH // 2 - 170, 390, 340, 62), "✦  PERSONALIZAR AVATAR", True, 26)
-        self.button(pygame.Rect(WIDTH // 2 - 170, 470, 340, 62), "◎  SALIR", True, 26)
+        self.draw_text("Competencia educativa • bots adaptativos • 5 reinos", (WIDTH // 2, 232), 24, (150, 170, 205), True)
+        for i, minutes in enumerate((5, 6, 7)):
+            label = f"{minutes} MIN" + (" ✓" if self.match_duration == minutes * 60 else "")
+            self.button(pygame.Rect(WIDTH // 2 - 230 + i * 155, 260, 140, 42), label, True, 20)
+        self.button(pygame.Rect(WIDTH // 2 - 170, 325, 340, 62), "⚔  JUGAR OFFLINE", True, 30)
+        self.button(pygame.Rect(WIDTH // 2 - 170, 405, 340, 62), "✦  PERSONALIZAR AVATAR", True, 26)
+        self.button(pygame.Rect(WIDTH // 2 - 170, 485, 340, 62), "◎  SALIR", True, 26)
         self.draw_text(f"Nivel {1 + self.xp // 250}   •   🧠 {self.brain_coins} Brain Coins", (WIDTH // 2, 590), 24, (245, 245, 245), True)
 
     def draw_avatar_menu(self):
@@ -444,8 +470,9 @@ class Mathverse:
             self.draw_text(name, (px, py + 34), 18, (235, 240, 255), True)
             self.draw_text(str(score), (px, py), 20, (15, 20, 30), True)
         # Header
-        remaining = max(0, MATCH_SECONDS - (time.monotonic() - self.match_start))
+        remaining = max(0, self.match_duration - (time.monotonic() - self.match_start))
         self.draw_text(f"MATHVERSE   {int(remaining)//60:02d}:{int(remaining)%60:02d}", (28, 20), 30, (245, 215, 90))
+        self.draw_text(f"Pregunta {self.question_count} • ID {self.current_question_id}", (28, 82), 17, (155, 175, 210))
         self.draw_text(f"PUNTOS {self.score:,}   COMBO x{self.combo}   NIVEL {1 + self.xp // 250}", (28, 55), 21)
         pygame.draw.rect(self.screen, (25, 30, 50), (w - 285, 25, 230, 18), border_radius=9)
         pygame.draw.rect(self.screen, (110, 190, 255), (w - 285, 25, int(230 * self.mana / 100), 18), border_radius=9)
@@ -454,7 +481,7 @@ class Mathverse:
         panel = pygame.Rect(120, h - 285, w - 240, 120)
         pygame.draw.rect(self.screen, (20, 28, 49), panel, border_radius=18)
         pygame.draw.rect(self.screen, (65, 82, 125), panel, 2, border_radius=18)
-        self.draw_text(f"{DOMAINS[self.domain][2]}  {DOMAINS[self.domain][1]}", (panel.x + 18, panel.y + 13), 20, (245, 215, 90))
+        self.draw_text(f"{DOMAINS[self.domain][2]}  {DOMAINS[self.domain][1]} • {self.question_difficulty}", (panel.x + 18, panel.y + 13), 20, (245, 215, 90))
         self.draw_text(self.question, (w // 2, panel.y + 65), 30, (245, 248, 255), True)
         # Answers
         answer_w = min(300, (w - 180) // 4)
@@ -494,9 +521,13 @@ class Mathverse:
         x, y = pos
         w, h = self.screen.get_size()
         if self.state == "menu":
-            if pygame.Rect(w//2-170, 310, 340, 62).collidepoint(pos): self.new_match()
-            elif pygame.Rect(w//2-170, 390, 340, 62).collidepoint(pos): self.state = "avatar"
-            elif pygame.Rect(w//2-170, 470, 340, 62).collidepoint(pos): self.running = False
+            for i, minutes in enumerate((5, 6, 7)):
+                if pygame.Rect(w//2-230+i*155, 260, 140, 42).collidepoint(pos):
+                    self.match_duration = minutes * 60
+                    return
+            if pygame.Rect(w//2-170, 325, 340, 62).collidepoint(pos): self.new_match()
+            elif pygame.Rect(w//2-170, 405, 340, 62).collidepoint(pos): self.state = "avatar"
+            elif pygame.Rect(w//2-170, 485, 340, 62).collidepoint(pos): self.running = False
         elif self.state == "avatar":
             if pygame.Rect(30,30,130,48).collidepoint(pos): self.state = "menu"
             for i, key in enumerate(["aura", "electricidad", "fuego"]):
@@ -517,7 +548,7 @@ class Mathverse:
     def update(self, dt):
         if self.state != "match": return
         now = time.monotonic()
-        if now - self.match_start >= MATCH_SECONDS:
+        if now - self.match_start >= self.match_duration:
             self.finish()
             return
         if self.answered:

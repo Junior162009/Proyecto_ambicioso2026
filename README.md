@@ -57,7 +57,7 @@ Las pruebas cubren el banco de preguntas, cálculo de puntos, reglas de poderes,
 
 ## Versión web de prueba
 
-Mathverse usa Pygbag para empaquetar Pygame en WebAssembly. El flujo `.github/workflows/mathverse-web.yml` construye una versión de navegador en cada cambio a `main` o `mathverse-finalizacion`.
+Mathverse usa Pygbag para empaquetar Pygame en WebAssembly. El flujo `.github/workflows/pygbag-pages.yml` construye una versión de navegador en cada cambio a `main` o `mathverse-finalizacion`.
 
 - En la pestaña **Actions**, abre **Mathverse Web (Pygbag)** y descarga el artefacto `mathverse-web-build` para revisar el paquete generado.
 - La publicación automática en GitHub Pages está configurada solo para `main`, para no publicar cambios de una rama de trabajo antes de integrarlos.

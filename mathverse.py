@@ -434,12 +434,14 @@ class Mathverse:
         pygame.display.flip()
 
     def run(self):
+        global WIDTH, HEIGHT
         while self.running:
             dt = self.clock.tick(FPS) / 1000.0
             for event in pygame.event.get():
                 if event.type == pygame.QUIT: self.running = False
                 elif event.type == pygame.VIDEORESIZE:
-                    self.screen = pygame.display.set_mode((max(640, event.w), max(480, event.h)), pygame.RESIZABLE)
+                    WIDTH, HEIGHT = max(640, event.w), max(480, event.h)
+                    self.screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: self.running = False
                 elif event.type == pygame.KEYDOWN and self.state == "match" and pygame.K_1 <= event.key <= pygame.K_4:
                     self.answer(event.key - pygame.K_1)

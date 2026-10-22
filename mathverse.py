@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pygame
 
+from mathverse_core import atomic_write_json, validate_question_bank, validate_save
+
 WIDTH, HEIGHT = 1280, 720
 FPS = 60
 MATCH_SECONDS = 360
@@ -134,22 +136,35 @@ class Mathverse:
         self.bots = []
         self.player_name = "TÚ"
         self.save = self.load_save()
-        self.xp = self.save.get("xp", 0)
-        self.brain_coins = self.save.get("brain_coins", 0)
-        self.cosmetic = self.save.get("cosmetic", "aura")
+        self.xp = self.save["xp"]
+        self.brain_coins = self.save["brain_coins"]
+        self.cosmetic = self.save["cosmetic"]
+        self.answered = False
+        self.match_awarded = False
+        self.answer_explanation = ""
+        self.question_count = 0
+        self.power_cooldowns = {}
+        self.shield_active = False
+        self.double_or_nothing = False
+        errors = validate_question_bank(QUESTIONS)
+        if errors:
+            raise ValueError("Banco de preguntas inválido: " + "; ".join(errors))
 
     def load_save(self):
         try:
-            return json.loads(SAVE_FILE.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return {"xp": 0, "brain_coins": 0, "cosmetic": "aura"}
+            return validate_save(json.loads(SAVE_FILE.read_text(encoding="utf-8")))
+        except (OSError, ValueError, TypeError):
+            return validate_save({})
 
     def save_game(self):
-        data = {"xp": self.xp, "brain_coins": self.brain_coins, "cosmetic": self.cosmetic}
+        data = validate_save({"xp": self.xp, "brain_coins": self.brain_coins,
+                              "cosmetic": self.cosmetic,
+                              "completed_match_ids": self.save.get("completed_match_ids", [])})
         try:
-            SAVE_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            atomic_write_json(SAVE_FILE, data)
+            self.save = data
         except OSError:
-            pass
+            self.feedback = "No se pudo guardar el progreso local."
 
     def new_match(self):
         self.state = "match"
@@ -160,6 +175,12 @@ class Mathverse:
         self.match_start = time.monotonic()
         self.feedback = ""
         self.events.clear()
+        self.answered = False
+        self.match_awarded = False
+        self.question_count = 0
+        self.power_cooldowns.clear()
+        self.shield_active = False
+        self.double_or_nothing = False
         self.bots = [Bot(n, i) for i, n in enumerate(BOT_NAMES[:7])]
         self.next_question()
 
@@ -169,66 +190,90 @@ class Mathverse:
         pool = QUESTIONS[self.domain]
         self.question, self.options, self.correct = random.choice(pool)
         self.question_started = time.monotonic()
-        self.question_limit = 3.0 if self.round % 11 == 0 else random.uniform(9.0, 13.0)
+        self.answered = False
+        self.answer_explanation = ""
+        self.question_count += 1
+        self.question_limit = 3.0 if self.round % 11 == 0 else random.uniform(10.0, 15.0)
         if self.round % 11 == 0:
             self.feedback = "⚡ RONDA RELÁMPAGO — ¡3 segundos!"
             self.feedback_until = time.monotonic() + 2.0
 
     def answer(self, index):
-        if self.state != "match" or not self.question:
-            return
+        if self.state != "match" or not self.question or self.answered:
+            return False
         elapsed = time.monotonic() - self.question_started
-        if elapsed > self.question_limit:
-            self.feedback = "⏱️ ¡Tiempo agotado!"
-            self.combo = 0
-        elif index == self.correct:
+        timed_out = elapsed > self.question_limit or index < 0 or index >= len(self.options)
+        correct = not timed_out and index == self.correct
+        self.answered = True
+        if correct:
             speed = max(0.2, 1.0 - elapsed / self.question_limit)
             gain = int(55 + 55 * speed) + self.combo * 8
             if self.round % 11 == 0:
+                gain *= 2
+            if self.double_or_nothing:
                 gain *= 2
             self.score += gain
             self.mana = clamp(self.mana + 16 + int(speed * 12), 0, 100)
             self.xp += 10 + self.combo * 2
             self.combo += 1
-            self.feedback = f"✓ ¡Correcto! +{gain} XP +{gain} pts"
+            self.feedback = f"✓ ¡Correcto! +{gain} puntos"
         else:
             self.combo = 0
+            if self.double_or_nothing:
+                self.score = max(0, self.score - min(50, self.score))
             self.mana = clamp(self.mana + 3, 0, 100)
-            self.feedback = "✗ Respuesta incorrecta"
-        self.feedback_until = time.monotonic() + 1.2
-        self.next_question()
+            self.feedback = "⏱ Tiempo agotado" if timed_out else "✗ Respuesta incorrecta"
+        self.double_or_nothing = False
+        self.answer_explanation = f"Respuesta correcta: {self.options[self.correct]}"
+        self.feedback_until = time.monotonic() + 1.6
+        return True
 
     def use_power(self, power_index):
-        if self.state != "match":
-            return
-        name, cost, description = POWERS[power_index]
+        if self.state != "match" or self.answered or not 0 <= power_index < len(POWERS):
+            return False
+        now = time.monotonic()
+        cooldowns = {0: 12, 1: 15, 2: 18, 3: 12, 4: 15}
+        name, cost, _ = POWERS[power_index]
+        if now < self.power_cooldowns.get(power_index, 0):
+            self.feedback = "Poder en reutilización"
+            self.feedback_until = now + 1.2
+            return False
         if self.mana < cost:
             self.feedback = "⚡ No tienes suficiente maná"
-            self.feedback_until = time.monotonic() + 1.2
-            return
+            self.feedback_until = now + 1.2
+            return False
+        target = max(self.bots, key=lambda bot: bot.score, default=None)
+        if power_index in (3, 4) and ((power_index == 3 and self.shield_active) or (power_index == 4 and self.double_or_nothing)):
+            self.feedback = "Ese poder ya está activo"
+            self.feedback_until = now + 1.2
+            return False
         self.mana -= cost
-        target = max(self.bots, key=lambda b: b.score)
-        if power_index == 0:
-            target.answer_timer += 3
-        elif power_index == 1:
-            target.answer_timer += 4
-        elif power_index == 2:
-            stolen = min(80, target.score)
+        if power_index == 0 and target:
+            target.answer_timer += 3.0
+        elif power_index == 1 and target:
+            target.answer_timer += 4.0
+        elif power_index == 2 and target:
+            stolen = min(80, max(0, target.score))
             target.score -= stolen
             self.score += stolen
         elif power_index == 3:
-            self.feedback = "🛡️ Escudo activado"
-            self.mana += 0
+            self.shield_active = True
         elif power_index == 4:
-            self.score += 35
-        self.feedback = f"{name} → {target.name}"
-        self.feedback_until = time.monotonic() + 1.4
+            self.double_or_nothing = True
+        self.power_cooldowns[power_index] = now + cooldowns[power_index]
+        self.feedback = f"{name} activado"
+        self.feedback_until = now + 1.4
+        return True
 
     def finish(self):
+        if self.state != "match" or getattr(self, "match_awarded", False):
+            return False
+        self.match_awarded = True
         self.state = "result"
         self.brain_coins += max(5, self.score // 80)
         self.xp += self.score // 20
         self.save_game()
+        return True
 
     def draw_text(self, text, pos, size=28, color=(235, 240, 255), center=False):
         f = self.small if size <= 21 else self.font if size <= 32 else self.big if size <= 60 else self.huge
@@ -332,6 +377,8 @@ class Mathverse:
             self.button(pygame.Rect(25 + i * 165, h - 78, 155, 48), f"{name} • {cost}", self.mana >= cost, 17)
         if self.feedback and time.monotonic() < self.feedback_until:
             self.draw_text(self.feedback, (w // 2, h - 315), 22, (120, 235, 170), True)
+            if self.answered:
+                self.draw_text(self.answer_explanation, (w // 2, h - 290), 20, (255, 220, 120), True)
 
     def draw_result(self):
         self.screen.fill((9, 12, 25))
@@ -369,11 +416,15 @@ class Mathverse:
 
     def update(self, dt):
         if self.state != "match": return
-        for bot in self.bots: bot.update(dt, self)
-        if time.monotonic() - self.match_start >= MATCH_SECONDS:
+        now = time.monotonic()
+        if now - self.match_start >= MATCH_SECONDS:
             self.finish()
-        if time.monotonic() - self.question_started >= self.question_limit:
-            self.answer(-1)
+            return
+        if self.answered:
+            if now >= self.feedback_until: self.next_question()
+            return
+        for bot in self.bots: bot.update(dt, self)
+        if now - self.question_started >= self.question_limit: self.answer(-1)
 
     def draw(self):
         if self.state == "menu": self.draw_menu()
@@ -387,7 +438,11 @@ class Mathverse:
             dt = self.clock.tick(FPS) / 1000.0
             for event in pygame.event.get():
                 if event.type == pygame.QUIT: self.running = False
+                elif event.type == pygame.VIDEORESIZE:
+                    self.screen = pygame.display.set_mode((max(640, event.w), max(480, event.h)), pygame.RESIZABLE)
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: self.running = False
+                elif event.type == pygame.KEYDOWN and self.state == "match" and pygame.K_1 <= event.key <= pygame.K_4:
+                    self.answer(event.key - pygame.K_1)
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1: self.click(event.pos)
             self.update(dt)
             self.draw()

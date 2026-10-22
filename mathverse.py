@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pygame
 
-from mathverse_core import atomic_write_json, validate_question_bank, validate_save
+from mathverse_core import atomic_write_json, score_answer, validate_question_bank, validate_save
 
 WIDTH, HEIGHT = 1280, 720
 FPS = 60
@@ -206,12 +206,9 @@ class Mathverse:
         correct = not timed_out and index == self.correct
         self.answered = True
         if correct:
+            multiplier = (2 if self.round % 11 == 0 else 1) * (2 if self.double_or_nothing else 1)
+            gain = score_answer(True, elapsed, self.question_limit, self.combo, multiplier)
             speed = max(0.2, 1.0 - elapsed / self.question_limit)
-            gain = int(55 + 55 * speed) + self.combo * 8
-            if self.round % 11 == 0:
-                gain *= 2
-            if self.double_or_nothing:
-                gain *= 2
             self.score += gain
             self.mana = clamp(self.mana + 16 + int(speed * 12), 0, 100)
             self.xp += 10 + self.combo * 2

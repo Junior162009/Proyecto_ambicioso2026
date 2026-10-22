@@ -1,43 +1,25 @@
-# 🌐 Proyecto Ambicioso 2026 en navegador
+# Mathverse en navegador
 
-El juego de escritorio sigue usando `main.py` normalmente. La versión web se prepara automáticamente en una copia temporal para no alterar la versión de PC.
+El punto de entrada de la versión actual es `main.py` y el juego principal es `mathverse.py`. Pygbag empaqueta directamente esta versión; no uses el antiguo script `web/prepare_pygbag.py`, que fue creado para el juego anterior y busca una clase `Juego` que ya no es el punto de entrada actual.
 
-## Requisitos para desarrollo local
+## Probar en tu equipo
 
-- Python 3.12 recomendado para Pygbag 0.9.3.
-- Pygbag 0.9.3.
-- Navegador moderno, preferiblemente Chrome/Chromium.
-
-## Probar localmente
-
-Desde la raíz del repositorio:
+Desde la raíz del repositorio, con Python 3.11 recomendado:
 
 ```bash
-python -m pip install --upgrade pygbag==0.9.3
-python web/prepare_pygbag.py
-python -m pygbag .pygbag_src
+python -m pip install --upgrade pygbag==0.9.3 pygame-ce
+python -m pygbag .
 ```
 
-Después abre `http://localhost:8000`.
+Cuando termine la preparación, abre la dirección local que indique Pygbag (normalmente `http://localhost:8000`). La primera carga puede tardar porque el navegador descarga el runtime de WebAssembly.
 
-Para depuración de Pygbag se puede usar `http://localhost:8000/#debug`.
+## Publicación de prueba en GitHub
 
-## Qué hace la preparación
+El workflow `.github/workflows/pygbag-pages.yml` compila Mathverse en cada push a `main` y `mathverse-finalizacion`. En cualquier rama, descarga el artefacto `mathverse-web-build` desde la ejecución de Actions. Solo la rama `main` activa la publicación de GitHub Pages, para evitar publicar cambios de prueba antes de integrar la rama.
 
-- Copia módulos, imágenes, fuentes y demás recursos al staging `.pygbag_src/`.
-- Conserva `main.py` de escritorio sin modificar.
-- Convierte automáticamente el bucle principal de la copia web a `async def main()` y añade `await asyncio.sleep(0)` por frame.
-- Usa un canvas escalable en navegador en vez del `pygame.FULLSCREEN` del escritorio.
-- Mantiene la lógica del juego, mapas, cofres, enemigos, preguntas, combate, progresión y recursos originales.
+## Limitaciones que deben comprobarse
 
-## Publicación
-
-El workflow `.github/workflows/pygbag-pages.yml` prepara la copia, ejecuta Pygbag 0.9.3, verifica `build/web/index.html` y publica el resultado mediante GitHub Pages.
-
-La publicación se activa automáticamente con cada push a `main` y también puede lanzarse manualmente desde GitHub Actions.
-
-## Limitaciones web conocidas
-
-El navegador no tiene el mismo acceso al sistema de archivos que Windows/Linux. Las partidas que dependan de archivos locales deberán migrarse a almacenamiento del navegador si el proyecto usa guardado persistente en disco.
-
-El audio del navegador puede requerir una primera interacción del usuario por las políticas de reproducción automática.
+- El bucle del navegador usa `asyncio.sleep(0)` para ceder el control a WebAssembly.
+- La partida offline con bots no es multijugador en Internet.
+- El progreso guardado en archivos locales podría no persistir entre sesiones del navegador.
+- El paquete generado debe probarse en un navegador real; que Pygbag compile no demuestra por sí solo que toda la partida sea compatible.

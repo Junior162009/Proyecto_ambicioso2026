@@ -146,7 +146,7 @@ def test_generated_areas_always_have_a_spawn_tile():
         ):
             assert any("P" in fila for fila in area.mapa)
 
-def test_main_is_the_official_mathverse_launcher():
-    import mathverse
-    assert main.ejecutar is mathverse.ejecutar
-    assert hasattr(mathverse, "Mathverse")
+def test_main_is_the_original_matemia_game_entrypoint():
+    assert hasattr(main, "Juego")
+    assert callable(main.Juego)
+    assert callable(main.Juego.ejecutar)

@@ -98,6 +98,7 @@ class Bot:
         self.fog_until = 0.0
         self.frozen_until = 0.0
         self.marked_for_theft = False
+        self.theft_attacker = None
 
     def update(self, dt, game):
         if self.eliminated:
@@ -113,9 +114,11 @@ class Bot:
                 gain = random.randint(60, 105)
                 if self.marked_for_theft:
                     stolen = min(80, gain)
-                    game.score += stolen
+                    if self.theft_attacker is not None:
+                        self.theft_attacker.score += stolen
                     gain -= stolen
                     self.marked_for_theft = False
+                    self.theft_attacker = None
                     game.events.append((self.name, "ROBO DE PUNTOS ACTIVADO"))
                 self.score += gain
                 self.mana = clamp(self.mana + random.randint(8, 20), 0, 100)
@@ -133,14 +136,23 @@ class Bot:
             cost = {"NIEBLA MENTAL": 30, "CONGELAMIENTO": 45, "ROBO DE PUNTOS": 55}[attack]
             self.mana -= cost
             self.cooldown = random.uniform(7, 15)
-            if targets_player and not game.shield_active:
-                if attack == "NIEBLA MENTAL": game.player_fog_until = now + 3.0
-                elif attack == "CONGELAMIENTO": game.player_frozen_until = now + 2.0
-                else: game.player_marked_for_theft = True
+            if targets_player:
+                if game.shield_active:
+                    game.shield_active = False
+                    game.events.append((self.name, "ATAQUE BLOQUEADO POR ESCUDO"))
+                elif attack == "NIEBLA MENTAL":
+                    game.player_fog_until = now + 3.0
+                elif attack == "CONGELAMIENTO":
+                    game.player_frozen_until = now + 2.0
+                else:
+                    game.player_marked_for_theft = True
+                    game.player_theft_attacker = self
             elif target:
                 if attack == "NIEBLA MENTAL": target.fog_until = now + 3.0
                 elif attack == "CONGELAMIENTO": target.frozen_until = now + 2.0
-                else: target.marked_for_theft = True
+                else:
+                    target.marked_for_theft = True
+                    target.theft_attacker = self
             game.events.append((self.name, attack))
 
 
@@ -188,6 +200,7 @@ class Mathverse:
         self.player_fog_until = 0.0
         self.player_frozen_until = 0.0
         self.player_marked_for_theft = False
+        self.player_theft_attacker = None
         self.death_sudden = False
         self.boss_round = False
         self.match_duration = 360
@@ -231,6 +244,7 @@ class Mathverse:
         self.player_fog_until = 0.0
         self.player_frozen_until = 0.0
         self.player_marked_for_theft = False
+        self.player_theft_attacker = None
         self.death_sudden = False
         self.boss_round = False
         self.bots = [Bot(n, i) for i, n in enumerate(BOT_NAMES[:7])]
@@ -275,8 +289,11 @@ class Mathverse:
             gain = score_answer(True, elapsed, self.question_limit, self.combo, multiplier)
             if self.player_marked_for_theft:
                 stolen = min(80, gain)
+                if self.player_theft_attacker is not None and not self.player_theft_attacker.eliminated:
+                    self.player_theft_attacker.score += stolen
                 gain -= stolen
                 self.player_marked_for_theft = False
+                self.player_theft_attacker = None
                 self.events.append(("RIVAL", f"ROBO DE PUNTOS: {stolen}"))
             speed = max(0.2, 1.0 - elapsed / self.question_limit)
             self.score += gain
@@ -446,6 +463,11 @@ class Mathverse:
         start = (w - total) // 2
         for i, option in enumerate(self.options):
             self.button(pygame.Rect(start + i * (answer_w + gap), h - 150, answer_w, 58), f"{i+1}. {option}", True, 21)
+        if time.monotonic() < self.player_fog_until:
+            fog = pygame.Surface((w, 72), pygame.SRCALPHA)
+            fog.fill((185, 195, 215, 175))
+            self.screen.blit(fog, (0, h - 155))
+            self.draw_text("NIEBLA MENTAL • ¡mantén la calma!", (w // 2, h - 120), 21, (35, 42, 65), True)
         # Powers
         for i, (name, cost, _) in enumerate(POWERS):
             self.button(pygame.Rect(25 + i * 165, h - 78, 155, 48), f"{name} • {cost}", self.mana >= cost, 17)

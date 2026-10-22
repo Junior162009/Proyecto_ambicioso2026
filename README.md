@@ -23,6 +23,7 @@ También se puede ejecutar con `python mathverse.py`. Ambos comandos llaman a la
 ## Controles
 
 - Ratón o teclas 1–4: seleccionar respuestas.
+- En el menú, elige partidas de 5, 6 o 7 minutos.
 - Clic en los botones inferiores: usar poderes cuando el maná alcance el coste.
 - ESC: salir.
 
@@ -38,7 +39,10 @@ Las pruebas cubren el banco de preguntas, cálculo de puntos, reglas de poderes,
 ## Estado funcional conocido
 
 - Modo offline con bots: implementado en el cliente Pygame.
-- Cinco reinos: incluye un banco inicial de preguntas, no una base de miles de preguntas.
+- Cinco reinos: banco inicial de 30 preguntas, con identificador estable, dificultad y explicación; se puede ampliar desde `QUESTIONS`.
+- Eventos offline: rondas relámpago de 3 segundos, muerte súbita y bonificación de Jefe del Dominio.
+- Bots: cinco personalidades con precisión, preferencias y frecuencia de poderes diferentes.
+- Poderes: niebla reduce temporalmente la precisión del bot; congelamiento retrasa su respuesta; robo transfiere puntos de su próxima respuesta; el escudo bloquea un ataque; doble o nada apuesta la próxima ganancia.
 - Perfil local: guardado JSON con validación y escritura atómica.
 - Online: no se anuncia como funcional. Este repositorio no contiene aún un servidor autoritativo, emparejamiento ni sincronización WebSocket verificados. Para habilitarlo hace falta desplegar y probar esa infraestructura.
 - Navegador/Pygbag: no declarado compatible ni probado en esta entrega.
